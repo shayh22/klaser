@@ -106,7 +106,17 @@
     background:var(--card-soft);border:1px solid var(--line);
     aspect-ratio:16/9;   /* known from the file: 1280x720, so no layout shift */
   }
+  .hero{position:relative}
   .hero video{display:block;width:100%;height:100%;object-fit:cover}
+  .hero-play{
+    position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;
+    border:none;cursor:pointer;font-size:24px;line-height:1;
+    background:rgba(15,118,110,.92);color:#fff;
+    display:grid;place-items:center;padding:0 0 0 4px;
+    box-shadow:0 6px 20px rgba(0,0,0,.3);transition:transform .12s ease;
+  }
+  .hero-play:hover{transform:scale(1.06)}
+  .hero-play:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
   header.top .sub{margin:2px 0 0;color:var(--ink-soft);font-size:14.5px}
   .langbar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:14px 0 0}
   @media (max-width:520px){
@@ -386,8 +396,9 @@
   <header class="top">
     <div class="hero" id="hero" hidden>
       <video id="heroVid" muted loop playsinline preload="metadata"
-             aria-hidden="true" tabindex="-1"
+             poster="docs/hero-poster.jpg" aria-hidden="true" tabindex="-1"
              src="docs/gemini_generated_video_2d79698b.mp4"></video>
+      <button class="hero-play" id="heroPlay" type="button" hidden>▶</button>
     </div>
     <h1 id="appH1">🗂️ <span data-t="appTitle"></span></h1>
     <p class="sub" data-t="appTagline"></p>
@@ -640,6 +651,7 @@ const STR = {
     ru:'Короткие номера со звёздочкой часто не работают из-за границы или с иностранной SIM — поэтому указан и обычный номер. Код Израиля: +972.'},
   shareApp:{he:'שיתוף הכלי',fr:'Partager l’outil',en:'Share this tool',ru:'Поделиться'},
   builtBy:{he:'פותח על ידי',fr:'Développé par',en:'Built by',ru:'Разработано'},
+  playVideo:{he:'הפעלת הסרטון',fr:'Lire la vidéo',en:'Play the video',ru:'Воспроизвести видео'},
   builtByTag:{
     he:'פיתוח תוכנה מותאם, במהירות הבזק, בטכנולוגיית AI',
     fr:'Développement logiciel sur mesure, à la vitesse de l’éclair, propulsé par l’IA',
@@ -1529,18 +1541,36 @@ $('#importFile').addEventListener('change', e => {
    permitted at all; the file also carries an audio track, which must never
    start on its own. */
 (function initHero(){
-  const wrap = $('#hero'), vid = $('#heroVid'), h1 = $('#appH1');
+  const wrap = $('#hero'), vid = $('#heroVid'), h1 = $('#appH1'), play = $('#heroPlay');
   if(!wrap || !vid) return;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(reduce){ wrap.remove(); return; }        /* keep the text heading instead */
-  vid.muted = true;                            /* belt and braces before play() */
-  vid.addEventListener('playing', () => {
-    wrap.hidden = false;
-    h1.classList.add('replaced');
+
+  /* The poster makes the header meaningful before a single video byte
+     arrives, so the hero is shown straight away rather than waiting for
+     playback — autoplay is refused far too often to gate on it: sandboxed
+     iframes, iOS low-power mode, data saver, several Android browsers. */
+  wrap.hidden = false;
+  h1.classList.add('replaced');
+
+  /* Only a genuine load failure falls back to the text title. */
+  vid.addEventListener('error', () => {
+    wrap.remove();
+    h1.classList.remove('replaced');
   }, {once:true});
-  vid.addEventListener('error', () => wrap.remove(), {once:true});
+
+  const showPlay = () => {
+    play.hidden = false;
+    play.setAttribute('aria-label', t('playVideo'));
+  };
+  play.addEventListener('click', () => {
+    vid.play().then(() => { play.hidden = true; }).catch(() => {});
+  });
+
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){ showPlay(); return; }   /* visible and playable, just not automatic */
+
+  vid.muted = true;                    /* required before autoplay is permitted */
   const attempt = vid.play();
-  if(attempt && attempt.catch) attempt.catch(() => wrap.remove());
+  if(attempt && attempt.catch) attempt.catch(showPlay);
 })();
 
 /* ======================= BOOT ======================= */
