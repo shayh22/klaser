@@ -395,8 +395,9 @@
 <div class="wrap">
   <header class="top">
     <div class="hero" id="hero" hidden>
-      <video id="heroVid" muted loop playsinline preload="metadata"
-             poster="docs/hero-poster.jpg" aria-hidden="true" tabindex="-1"
+      <video id="heroVid" autoplay muted loop playsinline preload="auto"
+             disableremoteplayback poster="docs/hero-poster.jpg"
+             aria-hidden="true" tabindex="-1"
              src="docs/gemini_generated_video_2d79698b.mp4"></video>
       <button class="hero-play" id="heroPlay" type="button" hidden>▶</button>
     </div>
@@ -1566,11 +1567,29 @@ $('#importFile').addEventListener('change', e => {
   });
 
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(reduce){ showPlay(); return; }   /* visible and playable, just not automatic */
+  if(reduce){ vid.removeAttribute('autoplay'); vid.pause(); showPlay(); return; }
 
   vid.muted = true;                    /* required before autoplay is permitted */
-  const attempt = vid.play();
-  if(attempt && attempt.catch) attempt.catch(showPlay);
+
+  /* The attribute does the work; this is a backstop for browsers that defer
+     until the element is scripted, and it retries once the first frames land
+     in case the attempt ran before there was anything to play. */
+  const tryPlay = () => {
+    const a = vid.play();
+    if(a && a.catch) a.catch(() => { if(vid.paused) showPlay(); });
+  };
+  tryPlay();
+  vid.addEventListener('loadeddata', () => { if(vid.paused) tryPlay(); }, {once:true});
+  vid.addEventListener('canplay',    () => { if(vid.paused) tryPlay(); }, {once:true});
+  /* 'play' fires on the attempt and still fires when the attempt is then
+     refused, which would hide the button again straight after the rejection
+     revealed it. 'playing' only fires once the media is really advancing. */
+  vid.addEventListener('playing', () => { play.hidden = true; });
+
+  /* if a tab is opened in the background, autoplay is commonly deferred */
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden && vid.paused && !play.hidden) tryPlay();
+  });
 })();
 
 /* ======================= BOOT ======================= */
