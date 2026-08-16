@@ -647,12 +647,13 @@ const AGENCIES = {
   chinuch:{he:'משרד החינוך',tr:'Misrad HaChinuch',fr:"Ministère de l'Éducation",en:'Ministry of Education',ru:'Министерство образования',
        tel:'*6552',tel2:'073-3983960',url:'https://www.gov.il/he/departments/education'},
   /* `code` is the bank number every Israeli form asks for — it is the reporting
-     symbol with the trailing 001 removed. Banks whose official domain could not
-     be confirmed carry no link on purpose: a wrong bank URL is a phishing risk. */
+     symbol with the trailing 001 removed. Every bank now has an official link;
+     the render still falls back to "site not verified" for any future entry
+     added without one, since guessing a bank domain is a phishing risk. */
   bank:{he:'בנק',tr:'Bank',fr:'Banque',en:'Bank',ru:'Банк',tel:'',url:'',
        children:[
-         {he:'בנק אש ישראל',                tr:'Esh Israel',        code:'3'},
-         {he:'בנק יהב לעובדי המדינה',        tr:'Bank Yahav',        code:'4'},
+         {he:'בנק אש ישראל',                tr:'Esh Israel',        code:'3', url:'https://esh.com/'},
+         {he:'בנק יהב לעובדי המדינה',        tr:'Bank Yahav',        code:'4', url:'https://www.bank-yahav.co.il/'},
          {he:'בנק לאומי לישראל',             tr:'Bank Leumi',        code:'10',url:'https://www.leumi.co.il'},
          {he:'בנק דיסקונט לישראל',           tr:'Bank Discount',     code:'11',url:'https://www.discountbank.co.il'},
          {he:'בנק הפועלים',                 tr:'Bank Hapoalim',     code:'12',url:'https://www.bankhapoalim.co.il'},
@@ -660,7 +661,7 @@ const AGENCIES = {
          {he:'וואן זירו הבנק הדיגיטלי',       tr:'ONE ZERO',          code:'18',url:'https://www.onezerobank.com'},
          {he:'בנק מזרחי טפחות',              tr:'Mizrahi Tefahot',   code:'20',url:'https://www.mizrahi-tefahot.co.il'},
          {he:'הבנק הבינלאומי הראשון לישראל',  tr:'First International',code:'31',url:'https://www.fibi.co.il'},
-         {he:'בנק מסד',                     tr:'Bank Massad',       code:'46'},
+         {he:'בנק מסד',                     tr:'Bank Massad',       code:'46',url:'https://www.bankmassad.co.il/private/'},
          {he:'בנק ירושלים',                 tr:'Bank Jerusalem',    code:'54',url:'https://www.bankjerusalem.co.il'}
        ]},
   other:{he:'אחר',tr:'Acher',fr:'Autre',en:'Other',ru:'Другое',tel:'',url:''}
