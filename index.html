@@ -1588,8 +1588,23 @@ $('#importFile').addEventListener('change', e => {
 
   /* if a tab is opened in the background, autoplay is commonly deferred */
   document.addEventListener('visibilitychange', () => {
-    if(!document.hidden && vid.paused && !play.hidden) tryPlay();
+    if(!document.hidden && vid.paused) tryPlay();
   });
+
+  /* Where a browser refuses to start it by itself, the first interaction of
+     any kind counts as the gesture it was waiting for — so it starts on the
+     user's first touch or scroll rather than making them hunt for the button. */
+  const kick = () => { if(vid.paused) tryPlay(); };
+  ['pointerdown','touchstart','keydown','scroll','wheel'].forEach(evt =>
+    window.addEventListener(evt, kick, {once:true, passive:true}));
+
+  /* and once it is actually on screen, in case the attempt ran too early */
+  if('IntersectionObserver' in window){
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if(e.isIntersecting && vid.paused) tryPlay(); });
+    }, {threshold:0.1});
+    io.observe(vid);
+  }
 })();
 
 /* ======================= BOOT ======================= */
