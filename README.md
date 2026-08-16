@@ -1,4 +1,4 @@
-# 🗂️ תיק פתוח / Tik Patuach
+# 🗂️ קלסר / Klaser
 
 A single-page tool for keeping track of Israeli bureaucracy: which case is at
 which stage, which documents are still missing, and — the part that actually
@@ -6,6 +6,9 @@ trips people up — **what the thing is called in Hebrew**.
 
 Built for anyone who finds Israeli forms hard, and especially for Olim Hadashim.
 The interface is available in **עברית · Français · English · Русский**.
+
+**The name:** קלסר (*klaser*) is the ring binder that every household dealing
+with Israeli bureaucracy ends up keeping. This is that binder.
 
 ## The idea
 
