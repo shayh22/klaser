@@ -216,6 +216,9 @@
   }
   .thumb:hover{border-color:var(--brand);transform:scale(1.05)}
   .thumb.missing{opacity:.4}
+  .thumb.add{border-style:dashed;font-size:24px;color:var(--ink-soft);font-weight:400}
+  .thumb.add:hover{background:var(--brand-soft);color:var(--brand-ink)}
+  .case-scans{padding-inline-start:0}
   .thumb:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
   .scan-box{max-width:640px;text-align:center}
   .scan-box img{max-width:100%;max-height:65vh;border-radius:12px;display:block;margin:0 auto}
@@ -341,6 +344,7 @@
   <!-- ============ AGENCIES ============ -->
   <section id="view-agencies" hidden>
     <div class="notice" data-t="agencyNotice"></div>
+    <div class="notice" data-t="abroadNote"></div>
     <div class="dir" id="agencyList"></div>
   </section>
 
@@ -359,6 +363,7 @@
     <p>
       <button class="btn small" id="exportBtn" data-t="exportData"></button>
       <button class="btn small" id="importBtn" data-t="importData"></button>
+      <button class="btn small" id="shareBtn" data-t="shareApp"></button>
       <input type="file" id="importFile" accept="application/json" class="sr">
     </p>
     <p data-t="storageNote"></p>
@@ -487,6 +492,14 @@ const STR = {
   custom:{he:'תיק חופשי (בלי תבנית)',fr:'Dossier libre (sans modèle)',en:'Free-form case (no template)',ru:'Свободное дело (без шаблона)'},
 
   secDocs:{he:'מסמכים',fr:'Documents',en:'Documents',ru:'Документы'},
+  secReceived:{
+    he:'מה שקיבלתי מהרשות',fr:'Reçu de l’administration',
+    en:'Received from the agency',ru:'Получено из ведомства'},
+  receivedHint:{
+    he:'מכתבים, אישורים או טפסים שקיבלתם — שווה לצלם מיד.',
+    fr:'Courriers, attestations ou formulaires reçus — photographiez-les tout de suite.',
+    en:'Letters, confirmations or forms you were given — photograph them straight away.',
+    ru:'Письма, справки или бланки, которые вам выдали — сфотографируйте сразу.'},
   secNotes:{he:'יומן — מה נאמר ומתי',fr:'Journal — qui a dit quoi, quand',en:'Log — what was said, and when',ru:'Журнал — что сказали и когда'},
   addDoc:{he:'הוספת מסמך…',fr:'Ajouter un document…',en:'Add a document…',ru:'Добавить документ…'},
   addNote:{he:'מה קרה? (״התקשרתי, אמרו לחכות 30 יום״)',fr:'Que s’est-il passé ? (« appelé, on m’a dit d’attendre 30 jours »)',en:'What happened? ("called, told to wait 30 days")',ru:'Что произошло? («звонил, сказали ждать 30 дней»)'},
@@ -548,6 +561,18 @@ const STR = {
   glossarySearch:{he:'חיפוש מונח — בעברית או בשפה שלכם',fr:'Rechercher un terme — en hébreu ou dans votre langue',en:'Search a term — in Hebrew or your language',ru:'Поиск термина — на иврите или на вашем языке'},
   noResults:{he:'לא נמצאו תוצאות.',fr:'Aucun résultat.',en:'No results.',ru:'Ничего не найдено.'},
   phone:{he:'טלפון',fr:'Téléphone',en:'Phone',ru:'Телефон'},
+  phoneAbroad:{he:'מחו״ל / סים זר',fr:"Depuis l'étranger",en:'From abroad',ru:'Из-за границы'},
+  abroadNote:{
+    he:'מספרים שמתחילים בכוכבית לא תמיד עובדים מחו״ל או מסים זר — לכן מופיע גם מספר רגיל. קידומת ישראל: 972+.',
+    fr:'Les numéros courts (*) ne fonctionnent pas toujours depuis l’étranger ou avec une carte SIM étrangère — un numéro classique est donc indiqué. Indicatif d’Israël : +972.',
+    en:'Short codes starting with * often do not work from abroad or on a foreign SIM, so a regular number is listed too. Israel dialling code: +972.',
+    ru:'Короткие номера со звёздочкой часто не работают из-за границы или с иностранной SIM — поэтому указан и обычный номер. Код Израиля: +972.'},
+  shareApp:{he:'שיתוף הכלי',fr:'Partager l’outil',en:'Share this tool',ru:'Поделиться'},
+  shareText:{
+    he:'קלסר — כלי חינמי לעקוב אחרי תהליכים מול הרשויות בישראל, בעברית/צרפתית/אנגלית/רוסית:',
+    fr:'Klaser — un outil gratuit pour suivre vos démarches administratives en Israël (hébreu/français/anglais/russe) :',
+    en:'Klaser — a free tool for tracking Israeli bureaucracy, in Hebrew/French/English/Russian:',
+    ru:'Klaser — бесплатный инструмент для отслеживания дел в израильских ведомствах (иврит/французский/английский/русский):'},
   website:{he:'אתר רשמי',fr:'Site officiel',en:'Official site',ru:'Официальный сайт'},
 
   exportData:{he:'⬇ גיבוי לקובץ',fr:'⬇ Sauvegarder',en:'⬇ Back up to file',ru:'⬇ Резервная копия'},
@@ -575,21 +600,21 @@ const STATUSES = [
 /* Agencies. `he`+`tr` are shown in every language — that is the point. */
 const AGENCIES = {
   btl:{he:'ביטוח לאומי',tr:'Bituach Leumi',fr:'Sécurité sociale',en:'National Insurance Institute',ru:'Институт национального страхования',
-       tel:'*6050',url:'https://www.btl.gov.il'},
+       tel:'*6050',tel2:'04-8812345',url:'https://www.btl.gov.il'},
   rashut:{he:'רשות האוכלוסין וההגירה',tr:'Rashut HaOchlusin',fr:"Autorité de la population et de l'immigration",en:'Population & Immigration Authority',ru:'Управление населения и иммиграции',
-       tel:'*3450',url:'https://www.gov.il/he/departments/population_and_immigration_authority'},
+       tel:'*3450',tel2:'074-7083450',url:'https://www.gov.il/he/departments/population_and_immigration_authority'},
   klita:{he:'משרד העלייה והקליטה',tr:'Misrad HaKlita',fr:"Ministère de l'Alya et de l'Intégration",en:'Ministry of Aliyah and Integration',ru:'Министерство алии и интеграции',
-       tel:'*2994',url:'https://www.gov.il/he/departments/moia'},
+       tel:'*2994',tel2:'03-9733333',url:'https://www.gov.il/he/departments/moia'},
   mas:{he:'רשות המסים',tr:'Rashut HaMisim',fr:'Administration fiscale',en:'Israel Tax Authority',ru:'Налоговое управление',
-       tel:'*4954',url:'https://www.gov.il/he/departments/taxes'},
+       tel:'*4954',tel2:'02-5656400',url:'https://www.gov.il/he/departments/taxes'},
   iriya:{he:'עירייה / רשות מקומית',tr:'Iriya',fr:'Mairie / collectivité locale',en:'Municipality / local authority',ru:'Мэрия / местный совет',
        tel:'106',url:'https://www.gov.il/he/departments/local_government'},
   kupa:{he:'קופת חולים',tr:'Kupat Cholim',fr:'Caisse de santé',en:'Health fund (HMO)',ru:'Больничная касса',
        tel:'',url:'https://www.kolzchut.org.il/he/קופות_חולים'},
   tachbura:{he:'משרד התחבורה',tr:'Misrad HaTachbura',fr:'Ministère des Transports',en:'Ministry of Transport',ru:'Министерство транспорта',
-       tel:'*5678',url:'https://www.gov.il/he/departments/ministry_of_transport_and_road_safety'},
+       tel:'*5678',tel2:'03-5086905',url:'https://www.gov.il/he/departments/ministry_of_transport_and_road_safety'},
   chinuch:{he:'משרד החינוך',tr:'Misrad HaChinuch',fr:"Ministère de l'Éducation",en:'Ministry of Education',ru:'Министерство образования',
-       tel:'*6552',url:'https://www.gov.il/he/departments/education'},
+       tel:'*6552',tel2:'073-3983960',url:'https://www.gov.il/he/departments/education'},
   bank:{he:'בנק',tr:'Bank',fr:'Banque',en:'Bank',ru:'Банк',tel:'',url:''},
   other:{he:'אחר',tr:'Acher',fr:'Autre',en:'Other',ru:'Другое',tel:'',url:''}
 };
@@ -801,7 +826,7 @@ async function hydrateThumbs(){
     }catch(e){ el.classList.add('missing'); }
   }
 }
-const allScans = () => cases.flatMap(c=>c.docs.flatMap(d=>d.scans||[]));
+const allScans = () => cases.flatMap(c=>[...(c.scans||[]), ...c.docs.flatMap(d=>d.scans||[])]);
 function humanSize(bytes){
   return bytes < 1048576 ? Math.max(1,Math.round(bytes/1024)) + ' KB'
                          : (bytes/1048576).toFixed(1) + ' MB';
@@ -933,6 +958,16 @@ function renderCases(){
           <button class="btn small" type="button" data-act="adddoc">${esc(t('add'))}</button>
         </div>
 
+        <div class="sec-label">${esc(t('secReceived'))}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin:-3px 0 8px">${esc(t('receivedHint'))}</div>
+        <div class="scans case-scans">
+          ${(c.scans||[]).map(sc=>
+            `<button class="thumb" type="button" data-act="openscan" data-scan="${sc.id}" data-doc=""
+                     aria-label="${esc(sc.name||'scan')}"></button>`).join('')}
+          <button class="thumb add" type="button" data-act="attach" data-doc=""
+                  aria-label="${esc(t('attach'))}" title="${esc(t('attach'))}">+</button>
+        </div>
+
         <div class="sec-label">${esc(t('secNotes'))}</div>
         <div class="notes">
           ${c.notes.length ? c.notes.map(n => `
@@ -963,6 +998,7 @@ function renderAgencies(){
     if(k === 'other') return '';
     const links = [];
     if(a.tel) links.push(`<a href="tel:${esc(a.tel.replace(/[^0-9*#+]/g,''))}" dir="ltr">${esc(t('phone'))}: ${esc(a.tel)}</a>`);
+    if(a.tel2) links.push(`<a href="tel:+972${esc(a.tel2.replace(/[^0-9]/g,'').replace(/^0/,''))}" dir="ltr">${esc(t('phoneAbroad'))}: ${esc(a.tel2)}</a>`);
     if(a.url) links.push(`<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(t('website'))} ↗</a>`);
     return `<div class="dir-item">
       <h3>${esc(nameOf(a))}</h3>
@@ -1116,7 +1152,8 @@ $('#caseList').addEventListener('click', e => {
 
   if(act === 'toggle'){ c.open = !c.open; save(); renderCases(); return; }
   if(act === 'attach'){
-    pending = {caseId:c.id, docId:e.target.dataset.doc};
+    /* an empty docId means the scan belongs to the case itself */
+    pending = {caseId:c.id, docId:e.target.dataset.doc || null};
     $('#scanInput').click(); return;
   }
   if(act === 'openscan'){
@@ -1146,6 +1183,7 @@ $('#caseList').addEventListener('click', e => {
   if(act === 'del'){
     if(confirm(t('confirmDel'))){
       c.docs.forEach(d => (d.scans||[]).forEach(sc => scanDel(sc.id).catch(()=>{})));
+      (c.scans||[]).forEach(sc => scanDel(sc.id).catch(()=>{}));
       cases = cases.filter(x=>x.id!==c.id); save(); render();
     }
     return;
@@ -1182,7 +1220,9 @@ $('#scanInput').addEventListener('change', async e => {
   e.target.value = '';
   if(!files.length || !pending) return;
   const c = cases.find(x=>x.id===pending.caseId);
-  const d = c && c.docs.find(x=>x.id===pending.docId);
+  if(!c) return;
+  /* target is either a document or the case itself */
+  const d = pending.docId ? c.docs.find(x=>x.id===pending.docId) : c;
   if(!d) return;
   d.scans = d.scans || [];
   for(const f of files){
@@ -1201,7 +1241,7 @@ $('#scanInput').addEventListener('change', async e => {
 
 async function openScan(caseId, docId, scanId){
   const c = cases.find(x=>x.id===caseId);
-  const d = c && c.docs.find(x=>x.id===docId);
+  const d = docId ? (c && c.docs.find(x=>x.id===docId)) : c;
   const meta = d && (d.scans||[]).find(x=>x.id===scanId);
   if(!meta) return;
   viewing = {caseId, docId, scanId};
@@ -1235,7 +1275,7 @@ $('#scanDelete').addEventListener('click', async () => {
   if(!viewing || !confirm(t('scanConfirmDel'))) return;
   const {caseId, docId, scanId} = viewing;
   const c = cases.find(x=>x.id===caseId);
-  const d = c && c.docs.find(x=>x.id===docId);
+  const d = docId ? (c && c.docs.find(x=>x.id===docId)) : c;
   if(d) d.scans = (d.scans||[]).filter(x=>x.id!==scanId);
   await scanDel(scanId).catch(()=>{});
   closeScan(); save(); renderCases();
@@ -1266,6 +1306,24 @@ $('#exportBtn').addEventListener('click', async () => {
   setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 });
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
+
+/* Nobody finds a tool like this by searching — it spreads person to person,
+   usually over WhatsApp. Use the native share sheet where it exists. */
+$('#shareBtn').addEventListener('click', async () => {
+  const url = location.href.split('#')[0];
+  const text = t('shareText');
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
+  if(navigator.share){
+    try{ await navigator.share({title:t('appTitle'), text, url}); return; }
+    catch(e){
+      if(e && e.name === 'AbortError') return;   /* user closed the sheet */
+      /* awaiting share consumed the user gesture, so window.open would be
+         popup-blocked here; navigate instead. State is already persisted. */
+      location.href = wa; return;
+    }
+  }
+  window.open(wa, '_blank', 'noopener');   /* still inside the gesture */
+});
 $('#importFile').addEventListener('change', e => {
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();

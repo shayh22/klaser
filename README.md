@@ -26,17 +26,21 @@ out loud.
   date and deadline. Deadlines inside two weeks are flagged; overdue ones go red.
 - **Documents** — each case gets a checklist. Twelve common processes come with
   their document list pre-filled; you can add your own items to any case.
-- **Scans** — attach a photo of any document straight from the phone camera, or
-  a file from disk. Thumbnails sit under the document; tap to view full size,
+- **Scans** — attach a photo straight from the phone camera, or a file from
+  disk, either to a document you owe or to the case itself (for letters and
+  confirmations the agency gave *you*). Thumbnails sit under the document; tap to view full size,
   save a copy, or delete. Images are shrunk to a readable size before storing.
 - **Log** — a dated note for every phone call and visit. Who said what, and when.
   This is the part that wins arguments later.
 - **Agency directory** — Bituach Leumi, the Population Authority, the Ministry
   of Aliyah, the Tax Authority, municipalities, health funds and others, each
-  with its Hebrew name, phone shortcut and official link.
+  with its Hebrew name, official link, and **two** phone numbers: the `*` short
+  code and a regular landline, because short codes generally fail from abroad
+  or on a foreign SIM — exactly when a new arrival needs to call.
 - **Glossary** — the ~25 words you will actually hear at a counter (תור, אסמכתא,
   זכאות, השלמת מסמכים…). Searchable in any of the four languages at once.
 - **Backup / restore** — export everything to a JSON file and read it back.
+- **Share** — native share sheet where available, WhatsApp otherwise.
 
 ## Running it
 
