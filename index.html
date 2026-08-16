@@ -18,7 +18,7 @@
 <meta property="og:image" content="https://shayh22.github.io/klaser/docs/og-image.jpg">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="670">
+<meta property="og:image:height" content="671">
 <meta property="og:image:alt" content="קלסר — עושים סדר בבירוקרטיה">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="קלסר — לא ללכת לאיבוד בבירוקרטיה">
@@ -94,6 +94,19 @@
   /* ---------- header ---------- */
   header.top{padding:22px 0 12px;text-align:center}
   header.top h1{margin:0;font-size:clamp(24px,5.5vw,34px);letter-spacing:-.5px}
+  /* the heading is only visually replaced once the video is actually playing,
+     so a blocked autoplay, a slow link or a missing codec never leaves the
+     page without a title */
+  header.top h1.replaced{
+    position:absolute;width:1px;height:1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;
+  }
+  .hero{
+    max-width:520px;margin:0 auto 10px;border-radius:16px;overflow:hidden;
+    background:var(--card-soft);border:1px solid var(--line);
+    aspect-ratio:16/9;   /* known from the file: 1280x720, so no layout shift */
+  }
+  .hero video{display:block;width:100%;height:100%;object-fit:cover}
   header.top .sub{margin:2px 0 0;color:var(--ink-soft);font-size:14.5px}
   .langbar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:14px 0 0}
   @media (max-width:520px){
@@ -371,7 +384,12 @@
 
 <div class="wrap">
   <header class="top">
-    <h1>🗂️ <span data-t="appTitle"></span></h1>
+    <div class="hero" id="hero" hidden>
+      <video id="heroVid" muted loop playsinline preload="metadata"
+             aria-hidden="true" tabindex="-1"
+             src="docs/gemini_generated_video_2d79698b.mp4"></video>
+    </div>
+    <h1 id="appH1">🗂️ <span data-t="appTitle"></span></h1>
     <p class="sub" data-t="appTagline"></p>
     <div class="langbar" id="langbar" role="group" aria-label="Language"></div>
   </header>
@@ -1504,6 +1522,26 @@ $('#importFile').addEventListener('change', e => {
   r.readAsText(f);
   e.target.value = '';
 });
+
+/* ---------- header video ----------
+   Decorative only: the <h1> carries the name and is merely hidden once the
+   video is confirmed playing. Muted + playsinline is what makes autoplay
+   permitted at all; the file also carries an audio track, which must never
+   start on its own. */
+(function initHero(){
+  const wrap = $('#hero'), vid = $('#heroVid'), h1 = $('#appH1');
+  if(!wrap || !vid) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){ wrap.remove(); return; }        /* keep the text heading instead */
+  vid.muted = true;                            /* belt and braces before play() */
+  vid.addEventListener('playing', () => {
+    wrap.hidden = false;
+    h1.classList.add('replaced');
+  }, {once:true});
+  vid.addEventListener('error', () => wrap.remove(), {once:true});
+  const attempt = vid.play();
+  if(attempt && attempt.catch) attempt.catch(() => wrap.remove());
+})();
 
 /* ======================= BOOT ======================= */
 load();
