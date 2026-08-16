@@ -273,6 +273,24 @@
     background:var(--brand-soft);border-radius:8px;padding:5px 10px;
   }
   .dir-links a:hover{text-decoration:underline}
+  .sub-note{font-size:12px;color:var(--ink-soft);margin:10px 0 6px;line-height:1.5}
+  .subs{list-style:none;margin:9px 0 0;padding:0;display:grid;gap:5px}
+  .sub{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:44px;
+    background:var(--card-soft);border:1px solid var(--line);border-radius:11px;padding:7px 11px;
+  }
+  .sub-name{flex:1;min-width:120px;font-size:14px;font-weight:600}
+  .sub-tr{display:block;font-size:11px;font-weight:500;color:var(--ink-soft);direction:ltr;unicode-bidi:isolate}
+  .sub-code{
+    font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+    background:var(--brand-soft);color:var(--brand-ink);border-radius:7px;padding:3px 9px;min-width:38px;text-align:center;
+  }
+  .sub-link{
+    font-size:12.5px;font-weight:600;text-decoration:none;color:var(--brand-ink);
+    background:var(--brand-soft);border-radius:8px;padding:0 11px;min-height:36px;display:inline-flex;align-items:center;
+  }
+  .sub-link:hover{text-decoration:underline}
+  .sub-none{font-size:11.5px;color:var(--ink-faint);font-style:italic}
 
   .gloss{display:grid;gap:7px}
   .gterm{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;
@@ -574,6 +592,13 @@ const STR = {
     en:'Klaser — a free tool for tracking Israeli bureaucracy, in Hebrew/French/English/Russian:',
     ru:'Klaser — бесплатный инструмент для отслеживания дел в израильских ведомствах (иврит/французский/английский/русский):'},
   website:{he:'אתר רשמי',fr:'Site officiel',en:'Official site',ru:'Официальный сайт'},
+  bankCode:{he:'מספר בנק',fr:'Code banque',en:'Bank code',ru:'Код банка'},
+  bankCodeNote:{
+    he:'המספר שמופיע ליד כל בנק הוא מספר הבנק — זה מה שמבקשים בטפסים של ביטוח לאומי, במשכורת ובאישור ניהול חשבון.',
+    fr:'Le nombre affiché est le code de la banque — c’est ce que demandent les formulaires de la sécurité sociale, l’employeur et l’attestation de compte.',
+    en:'The number beside each bank is its bank code — this is what National Insurance forms, your employer and the account confirmation ask for.',
+    ru:'Число рядом с банком — код банка. Именно его требуют формы Битуах Леуми, работодатель и справка о счёте.'},
+  noSiteYet:{he:'אתר לא אומת',fr:'Site non vérifié',en:'Site not verified',ru:'Сайт не проверен'},
 
   exportData:{he:'⬇ גיבוי לקובץ',fr:'⬇ Sauvegarder',en:'⬇ Back up to file',ru:'⬇ Резервная копия'},
   importData:{he:'⬆ שחזור מקובץ',fr:'⬆ Restaurer',en:'⬆ Restore from file',ru:'⬆ Восстановить'},
@@ -610,12 +635,34 @@ const AGENCIES = {
   iriya:{he:'עירייה / רשות מקומית',tr:'Iriya',fr:'Mairie / collectivité locale',en:'Municipality / local authority',ru:'Мэрия / местный совет',
        tel:'106',url:'https://www.gov.il/he/departments/local_government'},
   kupa:{he:'קופת חולים',tr:'Kupat Cholim',fr:'Caisse de santé',en:'Health fund (HMO)',ru:'Больничная касса',
-       tel:'',url:'https://www.kolzchut.org.il/he/קופות_חולים'},
+       tel:'',url:'https://www.kolzchut.org.il/he/קופות_חולים',
+       children:[
+         {he:'שירותי בריאות כללית',tr:'Clalit',  url:'https://www.clalit.co.il'},
+         {he:'מכבי שירותי בריאות', tr:'Maccabi', url:'https://www.maccabi4u.co.il'},
+         {he:'קופת חולים מאוחדת',  tr:'Meuhedet',url:'https://www.meuhedet.co.il'},
+         {he:'לאומית שירותי בריאות',tr:'Leumit', url:'https://www.leumit.co.il'}
+       ]},
   tachbura:{he:'משרד התחבורה',tr:'Misrad HaTachbura',fr:'Ministère des Transports',en:'Ministry of Transport',ru:'Министерство транспорта',
        tel:'*5678',tel2:'03-5086905',url:'https://www.gov.il/he/departments/ministry_of_transport_and_road_safety'},
   chinuch:{he:'משרד החינוך',tr:'Misrad HaChinuch',fr:"Ministère de l'Éducation",en:'Ministry of Education',ru:'Министерство образования',
        tel:'*6552',tel2:'073-3983960',url:'https://www.gov.il/he/departments/education'},
-  bank:{he:'בנק',tr:'Bank',fr:'Banque',en:'Bank',ru:'Банк',tel:'',url:''},
+  /* `code` is the bank number every Israeli form asks for — it is the reporting
+     symbol with the trailing 001 removed. Banks whose official domain could not
+     be confirmed carry no link on purpose: a wrong bank URL is a phishing risk. */
+  bank:{he:'בנק',tr:'Bank',fr:'Banque',en:'Bank',ru:'Банк',tel:'',url:'',
+       children:[
+         {he:'בנק אש ישראל',                tr:'Esh Israel',        code:'3'},
+         {he:'בנק יהב לעובדי המדינה',        tr:'Bank Yahav',        code:'4'},
+         {he:'בנק לאומי לישראל',             tr:'Bank Leumi',        code:'10',url:'https://www.leumi.co.il'},
+         {he:'בנק דיסקונט לישראל',           tr:'Bank Discount',     code:'11',url:'https://www.discountbank.co.il'},
+         {he:'בנק הפועלים',                 tr:'Bank Hapoalim',     code:'12',url:'https://www.bankhapoalim.co.il'},
+         {he:'בנק מרכנתיל דיסקונט',          tr:'Mercantile Discount',code:'17',url:'https://www.mercantile.co.il'},
+         {he:'וואן זירו הבנק הדיגיטלי',       tr:'ONE ZERO',          code:'18',url:'https://www.onezerobank.com'},
+         {he:'בנק מזרחי טפחות',              tr:'Mizrahi Tefahot',   code:'20',url:'https://www.mizrahi-tefahot.co.il'},
+         {he:'הבנק הבינלאומי הראשון לישראל',  tr:'First International',code:'31',url:'https://www.fibi.co.il'},
+         {he:'בנק מסד',                     tr:'Bank Massad',       code:'46'},
+         {he:'בנק ירושלים',                 tr:'Bank Jerusalem',    code:'54',url:'https://www.bankjerusalem.co.il'}
+       ]},
   other:{he:'אחר',tr:'Acher',fr:'Autre',en:'Other',ru:'Другое',tel:'',url:''}
 };
 
@@ -1000,10 +1047,19 @@ function renderAgencies(){
     if(a.tel) links.push(`<a href="tel:${esc(a.tel.replace(/[^0-9*#+]/g,''))}" dir="ltr">${esc(t('phone'))}: ${esc(a.tel)}</a>`);
     if(a.tel2) links.push(`<a href="tel:+972${esc(a.tel2.replace(/[^0-9]/g,'').replace(/^0/,''))}" dir="ltr">${esc(t('phoneAbroad'))}: ${esc(a.tel2)}</a>`);
     if(a.url) links.push(`<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(t('website'))} ↗</a>`);
+    const kids = (a.children||[]).map(ch => `
+      <li class="sub">
+        <span class="sub-name" dir="auto">${esc(ch.he)}<span class="sub-tr">${esc(ch.tr)}</span></span>
+        ${ch.code?`<span class="sub-code" dir="ltr" title="${esc(t('bankCode'))}">${esc(ch.code)}</span>`:''}
+        ${ch.url
+          ? `<a class="sub-link" href="${esc(ch.url)}" target="_blank" rel="noopener">${esc(t('website'))} ↗</a>`
+          : `<span class="sub-none">${esc(t('noSiteYet'))}</span>`}
+      </li>`).join('');
     return `<div class="dir-item">
       <h3>${esc(nameOf(a))}</h3>
       <p class="native"><span class="he-term">${esc(a.he)}<span class="tr">${esc(a.tr)}</span></span></p>
       ${links.length?`<div class="dir-links">${links.join('')}</div>`:''}
+      ${kids?`${k==='bank'?`<p class="sub-note">${esc(t('bankCodeNote'))}</p>`:''}<ul class="subs">${kids}</ul>`:''}
     </div>`;
   }).join('');
 }
