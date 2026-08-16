@@ -22,7 +22,7 @@
     --card-soft:#f7fbfa;
     --ink:#12211f;
     --ink-soft:#4a5f5c;
-    --ink-faint:#7d908d;
+    --ink-faint:#5f716e;   /* 4.7:1 on the page bg — was #7d908d at 3.1:1 */
     --line:#dbe8e5;
     --brand:#0f766e;
     --brand-ink:#0b5952;
@@ -62,6 +62,10 @@
       --shadow:0 10px 30px rgba(0,0,0,.4);
     }
   }
+  :where(button,a[href],input,select,textarea,[tabindex]):focus-visible{
+    outline:3px solid var(--brand);outline-offset:2px;border-radius:8px;
+  }
+  [hidden]{display:none!important}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
@@ -80,10 +84,14 @@
   header.top h1{margin:0;font-size:clamp(24px,5.5vw,34px);letter-spacing:-.5px}
   header.top .sub{margin:2px 0 0;color:var(--ink-soft);font-size:14.5px}
   .langbar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:14px 0 0}
+  @media (max-width:520px){
+    .langbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
+    .langbar button{padding:0 6px;font-size:13px}
+  }
   .langbar button{
-    font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    font:inherit;font-size:14px;font-weight:600;cursor:pointer;
     border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);
-    border-radius:999px;padding:6px 13px;transition:.12s;
+    border-radius:999px;padding:0 16px;min-height:44px;transition:.12s;
   }
   .langbar button:hover{border-color:var(--brand)}
   .langbar button[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
@@ -92,8 +100,9 @@
   nav.tabs{display:flex;gap:6px;margin:16px 0 14px;background:var(--card);border:1px solid var(--line);
     border-radius:14px;padding:5px;box-shadow:var(--shadow)}
   nav.tabs button{
-    flex:1;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:9px 6px;
-    border:none;background:transparent;color:var(--ink-soft);border-radius:10px;transition:.12s;
+    flex:1;font:inherit;font-size:14.5px;font-weight:600;cursor:pointer;padding:6px;
+    min-height:48px;border:none;background:transparent;color:var(--ink-soft);
+    border-radius:10px;transition:.12s;
   }
   nav.tabs button[aria-selected="true"]{background:var(--brand-soft);color:var(--brand-ink)}
   nav.tabs button:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
@@ -124,17 +133,20 @@
   .btn:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
   .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
   @media (prefers-color-scheme: dark){ .btn.primary{color:#08201d} }
-  .btn.small{font-size:12.5px;padding:6px 11px;border-radius:9px}
+  .btn{min-height:48px}
+  .btn.small{font-size:13px;padding:0 13px;min-height:44px;border-radius:9px}
+  @media (max-width:520px){ .toolbar .btn{width:100%} }
   .btn.danger{color:var(--danger);border-color:var(--danger-soft)}
 
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
   .stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 8px;text-align:center}
   .stat b{display:block;font-size:21px;font-variant-numeric:tabular-nums}
-  .stat span{font-size:11.5px;color:var(--ink-faint)}
+  .stat span{font-size:12.5px;color:var(--ink-soft);line-height:1.35;display:block}
 
   .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
   .filters button{
-    font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:999px;padding:5px 12px;
+    font:inherit;font-size:13px;font-weight:600;cursor:pointer;border-radius:999px;
+    padding:0 14px;min-height:44px;
     border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);transition:.12s;
   }
   .filters button[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
@@ -172,26 +184,30 @@
   }
   .doc:hover{border-color:var(--brand)}
   .doc input{
-    appearance:none;-webkit-appearance:none;margin:2px 0 0;flex:0 0 19px;width:19px;height:19px;
-    border:2px solid var(--ink-faint);border-radius:6px;background:var(--card);cursor:pointer;position:relative;
+    appearance:none;-webkit-appearance:none;margin:1px 0 0;flex:0 0 24px;width:24px;height:24px;
+    border:2px solid var(--ink-faint);border-radius:7px;background:var(--card);cursor:pointer;position:relative;
   }
   .doc input:checked{background:var(--brand);border-color:var(--brand)}
   .doc input:checked::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;
-    color:#fff;font-size:12px;font-weight:800}
+    color:#fff;font-size:15px;font-weight:800}
   @media (prefers-color-scheme: dark){ .doc input:checked::after{color:#08201d} }
   .doc-text{flex:1;min-width:0}
   .doc-text .lbl{font-weight:600;display:block}
   .doc input:checked ~ .doc-text .lbl{text-decoration:line-through;opacity:.55}
-  .doc .rm{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
-  .doc .rm:hover{color:var(--danger)}
+  .doc .rm{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:20px;
+    width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;padding:0;line-height:1;
+    margin:-8px -6px -8px 0;border-radius:9px}
+  .doc .rm:hover{color:var(--danger);background:var(--danger-soft)}
 
   /* ---------- scans ---------- */
   .doc-wrap{display:grid;gap:5px}
   .ic-btn{
-    background:none;border:none;cursor:pointer;font-size:15px;line-height:1;padding:0 4px;
-    filter:grayscale(.4);opacity:.75;transition:.12s;
+    background:none;border:none;cursor:pointer;font-size:19px;line-height:1;padding:0;
+    color:var(--ink-soft);
+    width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;
+    margin:-8px 0;border-radius:9px;transition:.12s;
   }
-  .ic-btn:hover{filter:none;opacity:1;transform:scale(1.12)}
+  .ic-btn:hover{background:var(--brand-soft);transform:scale(1.06)}
   .scans{display:flex;gap:6px;flex-wrap:wrap;padding-inline-start:30px}
   .thumb{
     width:54px;height:54px;border-radius:9px;border:1.5px solid var(--line);
@@ -213,8 +229,10 @@
   .notes{display:grid;gap:6px}
   .note{background:var(--card-soft);border:1px solid var(--line);border-radius:11px;padding:8px 11px;font-size:13.5px}
   .note .when{display:block;font-size:11px;color:var(--ink-faint);margin-bottom:2px}
-  .note .rm{float:inline-end;background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:15px;line-height:1}
-  .note .rm:hover{color:var(--danger)}
+  .note .rm{float:inline-end;background:none;border:none;color:var(--ink-faint);cursor:pointer;
+    font-size:19px;width:44px;height:44px;display:grid;place-items:center;padding:0;line-height:1;
+    margin:-10px -8px 0 0;border-radius:9px}
+  .note .rm:hover{color:var(--danger);background:var(--danger-soft)}
 
   .row-add{display:flex;gap:6px;margin-top:7px}
   .row-add input,.row-add textarea{flex:1;min-width:0}
@@ -261,15 +279,22 @@
   .gterm .g-def{flex:1;min-width:180px;font-size:13.5px;color:var(--ink-soft)}
 
   .empty{text-align:center;padding:34px 16px;color:var(--ink-faint)}
-  .empty .big{font-size:40px;display:block;margin-bottom:8px}
+  .empty .big{font-size:44px;display:block;margin-bottom:8px}
+  .empty b{display:block;font-size:17px;color:var(--ink);margin-bottom:4px}
+  .empty p{max-width:34ch;margin:0 auto 16px}
 
   .notice{
-    background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:11px 13px;
-    font-size:12.5px;font-weight:600;margin-bottom:12px;
+    background:var(--card);color:var(--ink-soft);border:1px solid var(--line);
+    border-inline-start:4px solid var(--warn);
+    border-radius:12px;padding:11px 13px;
+    font-size:12.5px;font-weight:500;line-height:1.5;margin-bottom:12px;
   }
-  footer.foot{text-align:center;font-size:12px;color:var(--ink-faint);margin-top:22px;line-height:1.7}
+  footer.foot{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:22px;line-height:1.7}
   footer.foot .btn{margin:0 3px}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  /* file inputs are opened by their own buttons; keeping them focusable adds a
+     mystery tab stop with no accessible name */
+  input[type=file].sr{display:none}
 </style>
 </head>
 <body>
@@ -291,7 +316,7 @@
   <section id="view-cases">
     <div class="notice" data-t="disclaimer"></div>
     <div class="stats" id="stats"></div>
-    <div class="toolbar">
+    <div class="toolbar" id="toolbar">
       <button class="btn primary" id="newCase" data-t="newCase"></button>
     </div>
     <div class="filters" id="filters"></div>
@@ -481,6 +506,10 @@ const STR = {
   statOpen:{he:'פתוחים',fr:'En cours',en:'Open',ru:'Открытых'},
   statDocs:{he:'מסמכים חסרים',fr:'Documents manquants',en:'Missing documents',ru:'Не хватает документов'},
   filterAll:{he:'הכול',fr:'Tous',en:'All',ru:'Все'},
+  noMatch:{he:'אין תיקים בשלב הזה.',fr:'Aucun dossier à cette étape.',
+    en:'No cases at this stage.',ru:'Нет дел на этом этапе.'},
+  showAll:{he:'הצגת כל התיקים',fr:'Afficher tous les dossiers',
+    en:'Show all cases',ru:'Показать все дела'},
 
   emptyTitle:{he:'עדיין אין תיקים',fr:'Aucun dossier',en:'No cases yet',ru:'Пока нет дел'},
   emptyBody:{
@@ -795,7 +824,15 @@ function renderCases(){
   if(!cases.length){
     $('#caseList').innerHTML =
       `<div class="card empty"><span class="big">🗂️</span>
-        <b>${esc(t('emptyTitle'))}</b><p>${esc(t('emptyBody'))}</p></div>`;
+        <b>${esc(t('emptyTitle'))}</b><p>${esc(t('emptyBody'))}</p>
+        <button class="btn primary" type="button" id="emptyNew">${esc(t('newCase'))}</button></div>`;
+    return;
+  }
+  if(!list.length){
+    $('#caseList').innerHTML =
+      `<div class="card empty"><span class="big">🔍</span>
+        <b>${esc(t('noMatch'))}</b>
+        <button class="btn" type="button" id="clearFilter">${esc(t('showAll'))}</button></div>`;
     return;
   }
   $('#caseList').innerHTML = list.map(c => {
@@ -906,7 +943,14 @@ function render(){
   $('#view-cases').hidden    = tab !== 'cases';
   $('#view-agencies').hidden = tab !== 'agencies';
   $('#view-glossary').hidden = tab !== 'glossary';
-  if(tab === 'cases'){ renderStats(); renderFilters(); renderCases(); }
+  if(tab === 'cases'){
+    /* On an empty list the stats read 0/0/0, the filter says "All (0)" and the
+       toolbar duplicates the empty card's button — four competing elements
+       where a first-time user needs one. Hide them until there is data. */
+    const has = cases.length > 0;
+    $('#stats').hidden = !has; $('#filters').hidden = !has; $('#toolbar').hidden = !has;
+    renderStats(); renderFilters(); renderCases();
+  }
   if(tab === 'agencies') renderAgencies();
   if(tab === 'glossary') renderGlossary();
 }
@@ -999,6 +1043,8 @@ $('#glossSearch').addEventListener('input', renderGlossary);
 
 /* Delegated handling for everything inside a case card. */
 $('#caseList').addEventListener('click', e => {
+  if(e.target.closest('#emptyNew')){ openModal(null); return; }
+  if(e.target.closest('#clearFilter')){ filter='all'; render(); return; }
   const card = e.target.closest('.case'); if(!card) return;
   const c = cases.find(x=>x.id===card.dataset.id); if(!c) return;
   const act = e.target.closest('[data-act]')?.dataset.act;
