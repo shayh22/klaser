@@ -282,6 +282,21 @@
   .empty .big{font-size:44px;display:block;margin-bottom:8px}
   .empty b{display:block;font-size:17px;color:var(--ink);margin-bottom:4px}
   .empty p{max-width:34ch;margin:0 auto 16px}
+  .quick{margin-top:6px;text-align:start}
+  .quick h3{font-size:14px;margin:0 0 3px;color:var(--ink)}
+  .quick .hint{font-size:12.5px;color:var(--ink-soft);margin:0 0 11px}
+  .quick-grid{display:grid;gap:8px;grid-template-columns:1fr}
+  @media (min-width:560px){ .quick-grid{grid-template-columns:1fr 1fr} }
+  .qbtn{
+    display:flex;align-items:center;gap:10px;width:100%;min-height:56px;
+    font:inherit;font-size:14.5px;font-weight:600;text-align:start;cursor:pointer;
+    background:var(--card-soft);border:1.5px solid var(--line);border-radius:13px;
+    padding:10px 13px;color:var(--ink);transition:.12s;
+  }
+  .qbtn:hover{border-color:var(--brand);background:var(--brand-soft)}
+  .qbtn .q-ic{font-size:21px;flex:0 0 auto;line-height:1}
+  .qbtn .q-txt{flex:1;min-width:0}
+  .qbtn .q-sub{display:block;font-weight:500;font-size:11.5px;color:var(--ink-soft)}
 
   .notice{
     background:var(--card);color:var(--ink-soft);border:1px solid var(--line);
@@ -512,6 +527,13 @@ const STR = {
     en:'Show all cases',ru:'Показать все дела'},
 
   emptyTitle:{he:'עדיין אין תיקים',fr:'Aucun dossier',en:'No cases yet',ru:'Пока нет дел'},
+  quickStart:{he:'מאיפה מתחילים?',fr:'Par où commencer ?',en:'Where do you start?',ru:'С чего начать?'},
+  quickHint:{
+    he:'בחרו תהליך — ייפתח תיק עם רשימת המסמכים המקובלת, ותוכלו לשנות אותה.',
+    fr:'Choisissez une démarche — un dossier s’ouvre avec la liste de documents habituelle, modifiable ensuite.',
+    en:'Pick a process — a case opens with the usual document list, which you can then change.',
+    ru:'Выберите процедуру — откроется дело с обычным списком документов, который можно изменить.'},
+  somethingElse:{he:'משהו אחר…',fr:'Autre chose…',en:'Something else…',ru:'Другое…'},
   emptyBody:{
     he:'פתחו תיק לכל תהליך שאתם מנהלים מול רשות — והכלי יזכור בשבילכם מה חסר ומה השלב.',
     fr:"Créez un dossier pour chaque démarche en cours — l'outil retiendra ce qui manque et où ça en est.",
@@ -648,6 +670,12 @@ const GLOSSARY = [
   {he:'מקור',tr:'Makor',fr:'Original',en:'Original document',ru:'Оригинал'}
 ];
 
+/* The processes a new arrival actually starts with, in rough chronological
+   order. Keys index into TEMPLATES — no separate data to keep in sync. */
+const QUICK = ['teudat_zehut','sal_klita','health','btl_register','bank_account','license'];
+const QUICK_IC = {teudat_zehut:'\u{1F194}', sal_klita:'\u{1F4B0}', health:'\u{1F3E5}',
+                  btl_register:'\u{1F3DB}️', bank_account:'\u{1F3E6}', license:'\u{1F697}'};
+
 /* ======================= STATE ======================= */
 const KEY = 'klaser.v1';
 let lang = 'he';
@@ -725,6 +753,16 @@ function idbTx(mode,fn){
   }));
 }
 const scanPut=(id,blob)=>idbTx('readwrite',st=>st.put(blob,id));
+
+/* Browsers may evict IndexedDB under storage pressure. Ask for exemption the
+   first time a scan is stored — asking on load, before the user has done
+   anything, is more likely to be refused. */
+let persistAsked=false;
+function requestPersistence(){
+  if(persistAsked || !navigator.storage || !navigator.storage.persist) return;
+  persistAsked=true;
+  navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist(); }).catch(()=>{});
+}
 const scanGet=id      =>idbTx('readonly', st=>st.get(id));
 const scanDel=id      =>idbTx('readwrite',st=>st.delete(id));
 
@@ -825,7 +863,19 @@ function renderCases(){
     $('#caseList').innerHTML =
       `<div class="card empty"><span class="big">🗂️</span>
         <b>${esc(t('emptyTitle'))}</b><p>${esc(t('emptyBody'))}</p>
-        <button class="btn primary" type="button" id="emptyNew">${esc(t('newCase'))}</button></div>`;
+        <div class="quick">
+          <h3>${esc(t('quickStart'))}</h3>
+          <p class="hint">${esc(t('quickHint'))}</p>
+          <div class="quick-grid">
+            ${QUICK.map(k=>{ const tpl=TEMPLATES[k], ag=AGENCIES[tpl.agency];
+              return `<button class="qbtn" type="button" data-act="quick" data-tpl="${k}">
+                <span class="q-ic">${QUICK_IC[k]||'\u{1F4CB}'}</span>
+                <span class="q-txt">${esc(nameOf(tpl))}
+                  <span class="q-sub">${esc(nameOf(ag))}${lang!=='he'?' · '+esc(ag.he):''}</span>
+                </span></button>`; }).join('')}
+          </div>
+          <button class="btn" type="button" id="emptyNew" style="width:100%;margin-top:9px">${esc(t('somethingElse'))}</button>
+        </div></div>`;
     return;
   }
   if(!list.length){
@@ -983,6 +1033,19 @@ function openModal(id){
 }
 function closeModal(){ $('#modal').dataset.open = '0'; editingId = null; }
 
+/* One tap from the empty state to a usable case. Same shape saveFromModal
+   produces — this only skips the form, it adds no new rules. */
+function addFromTemplate(key){
+  const tpl = TEMPLATES[key];
+  if(!tpl) return;
+  cases.unshift({
+    id:uid(), template:key, title:nameOf(tpl), agency:tpl.agency, status:'todo',
+    ref:'', opened:todayISO(), deadline:'', open:true,
+    docs: tpl.docs.map(k=>({id:uid(), key:k, done:false})), notes:[]
+  });
+  save(); render();
+}
+
 function saveFromModal(){
   const tpl = $('#fTemplate').value;
   const title = $('#fTitle').value.trim() ||
@@ -1045,6 +1108,8 @@ $('#glossSearch').addEventListener('input', renderGlossary);
 $('#caseList').addEventListener('click', e => {
   if(e.target.closest('#emptyNew')){ openModal(null); return; }
   if(e.target.closest('#clearFilter')){ filter='all'; render(); return; }
+  const q = e.target.closest('[data-act="quick"]');
+  if(q){ addFromTemplate(q.dataset.tpl); return; }
   const card = e.target.closest('.case'); if(!card) return;
   const c = cases.find(x=>x.id===card.dataset.id); if(!c) return;
   const act = e.target.closest('[data-act]')?.dataset.act;
@@ -1126,6 +1191,7 @@ $('#scanInput').addEventListener('change', async e => {
       const blob = await compress(f);
       const id = uid();
       await scanPut(id, blob);
+      requestPersistence();
       d.scans.push({id, name:f.name || 'scan', type:blob.type, size:blob.size, added:todayISO()});
     }catch(err){ alert(t('scanQuota')); break; }
   }
