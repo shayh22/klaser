@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>תיק פתוח — מעקב אחרי תהליכים מול רשויות בישראל</title>
+<meta name="description" content="כלי חינמי לעקוב אחרי תהליכים בירוקרטיים בישראל: אילו מסמכים חסרים, באיזה שלב כל תיק, ומה המונח בעברית — בעברית, צרפתית, אנגלית ורוסית.">
+<meta name="theme-color" content="#0f766e">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="תיק פתוח">
+<meta property="og:locale" content="he_IL">
+<meta property="og:title" content="תיק פתוח — לא ללכת לאיבוד בבירוקרטיה">
+<meta property="og:description" content="מעקב אחרי תיקים מול ביטוח לאומי, רשות האוכלוסין, העירייה וקופת חולים. כל מונח מוצג גם בעברית עם תעתיק — כדי שאפשר יהיה להצביע על המסך בדלפק.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗂️</text></svg>">
+
+<style>
+  :root{
+    --bg:#f1f6f5;
+    --bg2:#e3eeec;
+    --card:#ffffff;
+    --card-soft:#f7fbfa;
+    --ink:#12211f;
+    --ink-soft:#4a5f5c;
+    --ink-faint:#7d908d;
+    --line:#dbe8e5;
+    --brand:#0f766e;
+    --brand-ink:#0b5952;
+    --brand-soft:#dcf2ee;
+    --warn:#b45309;
+    --warn-soft:#fef3c7;
+    --danger:#b91c1c;
+    --danger-soft:#fee2e2;
+    --good:#15803d;
+    --good-soft:#dcfce7;
+    --info:#1d4ed8;
+    --info-soft:#dbeafe;
+    --shadow:0 10px 30px rgba(10,60,55,.10);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e1817;
+      --bg2:#132322;
+      --card:#172523;
+      --card-soft:#1d2e2c;
+      --ink:#eaf4f2;
+      --ink-soft:#b0c6c2;
+      --ink-faint:#7f9793;
+      --line:#2a3d3a;
+      --brand:#5eead4;
+      --brand-ink:#99f6e4;
+      --brand-soft:#173f3a;
+      --warn:#fbbf24;
+      --warn-soft:#3d2f11;
+      --danger:#fca5a5;
+      --danger-soft:#3f1a1a;
+      --good:#86efac;
+      --good-soft:#12331f;
+      --info:#93c5fd;
+      --info-soft:#152a4d;
+      --shadow:0 10px 30px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Heebo","Assistant","Rubik",system-ui,-apple-system,"Segoe UI","Noto Sans Hebrew",Arial,sans-serif;
+    background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;
+    color:var(--ink);
+    line-height:1.55;
+    -webkit-text-size-adjust:100%;
+    padding:0 0 48px;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:0 14px}
+
+  /* ---------- header ---------- */
+  header.top{padding:22px 0 12px;text-align:center}
+  header.top h1{margin:0;font-size:clamp(24px,5.5vw,34px);letter-spacing:-.5px}
+  header.top .sub{margin:2px 0 0;color:var(--ink-soft);font-size:14.5px}
+  .langbar{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:14px 0 0}
+  .langbar button{
+    font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);
+    border-radius:999px;padding:6px 13px;transition:.12s;
+  }
+  .langbar button:hover{border-color:var(--brand)}
+  .langbar button[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
+
+  /* ---------- tabs ---------- */
+  nav.tabs{display:flex;gap:6px;margin:16px 0 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:5px;box-shadow:var(--shadow)}
+  nav.tabs button{
+    flex:1;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:9px 6px;
+    border:none;background:transparent;color:var(--ink-soft);border-radius:10px;transition:.12s;
+  }
+  nav.tabs button[aria-selected="true"]{background:var(--brand-soft);color:var(--brand-ink)}
+  nav.tabs button:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+
+  /* ---------- generic card ---------- */
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:16px 15px;margin-bottom:12px;
+  }
+
+  /* Hebrew term chip — always visible, whatever the UI language */
+  .he-term{
+    display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap;
+    background:var(--brand-soft);color:var(--brand-ink);
+    border-radius:8px;padding:2px 8px;font-size:12.5px;font-weight:600;
+    direction:rtl;unicode-bidi:isolate;
+  }
+  .he-term .tr{font-size:11px;font-weight:500;opacity:.75;direction:ltr;unicode-bidi:isolate}
+
+  /* ---------- toolbar / stats ---------- */
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .btn{
+    font:inherit;font-size:14px;font-weight:600;cursor:pointer;border-radius:11px;padding:10px 15px;
+    border:1.5px solid var(--line);background:var(--card);color:var(--ink);transition:.12s;
+  }
+  .btn:hover{border-color:var(--brand)}
+  .btn:active{transform:scale(.98)}
+  .btn:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  @media (prefers-color-scheme: dark){ .btn.primary{color:#08201d} }
+  .btn.small{font-size:12.5px;padding:6px 11px;border-radius:9px}
+  .btn.danger{color:var(--danger);border-color:var(--danger-soft)}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 8px;text-align:center}
+  .stat b{display:block;font-size:21px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11.5px;color:var(--ink-faint)}
+
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .filters button{
+    font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:999px;padding:5px 12px;
+    border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);transition:.12s;
+  }
+  .filters button[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink)}
+
+  /* ---------- case card ---------- */
+  .case{padding:0;overflow:hidden}
+  .case-head{display:flex;align-items:flex-start;gap:10px;padding:14px 15px;cursor:pointer;width:100%;
+    background:transparent;border:none;font:inherit;color:inherit;text-align:start}
+  .case-head:hover{background:var(--card-soft)}
+  .case-main{flex:1;min-width:0}
+  .case-title{display:block;font-size:16px;font-weight:700;margin:0 0 3px;word-break:break-word}
+  .case-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink-faint)}
+  .case-caret{flex:0 0 auto;color:var(--ink-faint);font-size:13px;transition:transform .15s}
+  .case[open-state="1"] .case-caret{transform:rotate(90deg)}
+  html[dir="rtl"] .case[open-state="1"] .case-caret{transform:rotate(-90deg)}
+
+  .badge{display:inline-block;border-radius:7px;padding:2px 8px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .badge.todo{background:var(--line);color:var(--ink-soft)}
+  .badge.collecting{background:var(--info-soft);color:var(--info)}
+  .badge.submitted{background:var(--brand-soft);color:var(--brand-ink)}
+  .badge.waiting{background:var(--warn-soft);color:var(--warn)}
+  .badge.problem{background:var(--danger-soft);color:var(--danger)}
+  .badge.done{background:var(--good-soft);color:var(--good)}
+  .badge.due{background:var(--warn-soft);color:var(--warn)}
+  .badge.overdue{background:var(--danger-soft);color:var(--danger)}
+
+  .case-body{padding:0 15px 15px;border-top:1px solid var(--line);display:none}
+  .case[open-state="1"] .case-body{display:block}
+  .sec-label{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:14px 0 7px}
+
+  .docs{display:grid;gap:6px}
+  .doc{
+    display:flex;align-items:flex-start;gap:9px;background:var(--card-soft);
+    border:1px solid var(--line);border-radius:11px;padding:8px 11px;cursor:pointer;font-size:14px;
+  }
+  .doc:hover{border-color:var(--brand)}
+  .doc input{
+    appearance:none;-webkit-appearance:none;margin:2px 0 0;flex:0 0 19px;width:19px;height:19px;
+    border:2px solid var(--ink-faint);border-radius:6px;background:var(--card);cursor:pointer;position:relative;
+  }
+  .doc input:checked{background:var(--brand);border-color:var(--brand)}
+  .doc input:checked::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;
+    color:#fff;font-size:12px;font-weight:800}
+  @media (prefers-color-scheme: dark){ .doc input:checked::after{color:#08201d} }
+  .doc-text{flex:1;min-width:0}
+  .doc-text .lbl{font-weight:600;display:block}
+  .doc input:checked ~ .doc-text .lbl{text-decoration:line-through;opacity:.55}
+  .doc .rm{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
+  .doc .rm:hover{color:var(--danger)}
+
+  .progress{display:block;height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 0}
+  .progress i{display:block;height:100%;background:var(--brand);border-radius:6px;transition:width .2s}
+
+  .notes{display:grid;gap:6px}
+  .note{background:var(--card-soft);border:1px solid var(--line);border-radius:11px;padding:8px 11px;font-size:13.5px}
+  .note .when{display:block;font-size:11px;color:var(--ink-faint);margin-bottom:2px}
+  .note .rm{float:inline-end;background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:15px;line-height:1}
+  .note .rm:hover{color:var(--danger)}
+
+  .row-add{display:flex;gap:6px;margin-top:7px}
+  .row-add input,.row-add textarea{flex:1;min-width:0}
+
+  /* ---------- forms ---------- */
+  label.f{display:block;margin:11px 0 0}
+  label.f > span{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+  input[type=text],input[type=date],select,textarea{
+    width:100%;font:inherit;font-size:14.5px;color:var(--ink);background:var(--card-soft);
+    border:1.5px solid var(--line);border-radius:11px;padding:9px 11px;
+  }
+  textarea{resize:vertical;min-height:64px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:520px){ .grid2{grid-template-columns:1fr} }
+
+  /* ---------- modal ---------- */
+  .modal{position:fixed;inset:0;background:rgba(8,25,23,.55);display:none;align-items:flex-start;
+    justify-content:center;padding:16px;overflow-y:auto;z-index:50}
+  .modal[data-open="1"]{display:flex}
+  .modal-box{background:var(--card);border-radius:18px;max-width:560px;width:100%;padding:18px 16px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto}
+  .modal-box h2{margin:0 0 4px;font-size:19px}
+  .modal-actions{display:flex;gap:8px;margin-top:18px}
+  .modal-actions .btn{flex:1}
+
+  /* ---------- directory / glossary ---------- */
+  .dir{display:grid;gap:9px}
+  .dir-item{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 13px}
+  .dir-item h3{margin:0 0 3px;font-size:15.5px}
+  .dir-item .native{font-size:13px;color:var(--ink-soft);margin:0 0 7px}
+  .dir-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .dir-links a{
+    font-size:12.5px;font-weight:600;text-decoration:none;color:var(--brand-ink);
+    background:var(--brand-soft);border-radius:8px;padding:5px 10px;
+  }
+  .dir-links a:hover{text-decoration:underline}
+
+  .gloss{display:grid;gap:7px}
+  .gterm{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+    display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+  .gterm .g-he{font-size:16px;font-weight:700;direction:rtl;unicode-bidi:isolate}
+  .gterm .g-tr{font-size:12px;color:var(--ink-faint);direction:ltr;unicode-bidi:isolate}
+  .gterm .g-def{flex:1;min-width:180px;font-size:13.5px;color:var(--ink-soft)}
+
+  .empty{text-align:center;padding:34px 16px;color:var(--ink-faint)}
+  .empty .big{font-size:40px;display:block;margin-bottom:8px}
+
+  .notice{
+    background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:11px 13px;
+    font-size:12.5px;font-weight:600;margin-bottom:12px;
+  }
+  footer.foot{text-align:center;font-size:12px;color:var(--ink-faint);margin-top:22px;line-height:1.7}
+  footer.foot .btn{margin:0 3px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>🗂️ <span data-t="appTitle"></span></h1>
+    <p class="sub" data-t="appTagline"></p>
+    <div class="langbar" id="langbar" role="group" aria-label="Language"></div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="cases"    data-t="tabCases"></button>
+    <button role="tab" data-tab="agencies" data-t="tabAgencies"></button>
+    <button role="tab" data-tab="glossary" data-t="tabGlossary"></button>
+  </nav>
+
+  <!-- ============ CASES ============ -->
+  <section id="view-cases">
+    <div class="notice" data-t="disclaimer"></div>
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <button class="btn primary" id="newCase" data-t="newCase"></button>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div id="caseList"></div>
+  </section>
+
+  <!-- ============ AGENCIES ============ -->
+  <section id="view-agencies" hidden>
+    <div class="notice" data-t="agencyNotice"></div>
+    <div class="dir" id="agencyList"></div>
+  </section>
+
+  <!-- ============ GLOSSARY ============ -->
+  <section id="view-glossary" hidden>
+    <div class="card">
+      <label class="f" style="margin:0">
+        <span data-t="glossarySearch"></span>
+        <input type="text" id="glossSearch" autocomplete="off">
+      </label>
+    </div>
+    <div class="gloss" id="glossList"></div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      <button class="btn small" id="exportBtn" data-t="exportData"></button>
+      <button class="btn small" id="importBtn" data-t="importData"></button>
+      <input type="file" id="importFile" accept="application/json" class="sr">
+    </p>
+    <p data-t="storageNote"></p>
+  </footer>
+</div>
+
+<!-- ============ CASE EDITOR MODAL ============ -->
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <h2 id="modalTitle"></h2>
+    <label class="f">
+      <span data-t="fTemplate"></span>
+      <select id="fTemplate"></select>
+    </label>
+    <label class="f">
+      <span data-t="fTitle"></span>
+      <input type="text" id="fTitle" autocomplete="off" dir="auto">
+    </label>
+    <label class="f">
+      <span data-t="fAgency"></span>
+      <select id="fAgency"></select>
+    </label>
+    <div class="grid2">
+      <label class="f">
+        <span data-t="fStatus"></span>
+        <select id="fStatus"></select>
+      </label>
+      <label class="f">
+        <span data-t="fRef"></span>
+        <input type="text" id="fRef" autocomplete="off" dir="ltr">
+      </label>
+    </div>
+    <div class="grid2">
+      <label class="f">
+        <span data-t="fOpened"></span>
+        <input type="date" id="fOpened">
+      </label>
+      <label class="f">
+        <span data-t="fDeadline"></span>
+        <input type="date" id="fDeadline">
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="saveCase" data-t="save"></button>
+      <button class="btn" id="cancelCase" data-t="cancel"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =======================================================================
+   CONFIG — all translatable content and reference data lives here.
+   To add a language: add its code to LANGS and a matching key in every
+   `t` / name object below. Nothing in the logic is language-specific.
+   ======================================================================= */
+
+const LANGS = [
+  {code:'he', label:'עברית',    dir:'rtl'},
+  {code:'fr', label:'Français', dir:'ltr'},
+  {code:'en', label:'English',  dir:'ltr'},
+  {code:'ru', label:'Русский',  dir:'ltr'}
+];
+
+const STR = {
+  appTitle:{he:'תיק פתוח',fr:'Tik Patouah',en:'Tik Patuach',ru:'Тик Патуах'},
+  appTagline:{
+    he:'מעקב אחרי תהליכים מול הרשויות — מה חסר, איפה זה עומד, ואיך אומרים את זה בעברית.',
+    fr:"Suivez vos démarches administratives : ce qui manque, où ça en est, et le terme exact en hébreu.",
+    en:'Track your dealings with Israeli agencies: what is missing, where it stands, and the Hebrew term for it.',
+    ru:'Отслеживайте дела в израильских ведомствах: чего не хватает, на каком этапе и как это на иврите.'
+  },
+  tabCases:{he:'התיקים שלי',fr:'Mes dossiers',en:'My cases',ru:'Мои дела'},
+  tabAgencies:{he:'רשויות',fr:'Administrations',en:'Agencies',ru:'Ведомства'},
+  tabGlossary:{he:'מילון מונחים',fr:'Lexique',en:'Glossary',ru:'Словарь'},
+
+  disclaimer:{
+    he:'⚠️ הכלי עוזר לכם להתארגן — הוא אינו ייעוץ משפטי ואינו מחליף את אתר הרשות. רשימות המסמכים הן נקודת פתיחה; תמיד לאמת מול הרשות עצמה.',
+    fr:"⚠️ Cet outil vous aide à vous organiser — ce n'est pas un conseil juridique et il ne remplace pas le site officiel. Les listes de documents sont un point de départ : vérifiez toujours auprès de l'administration.",
+    en:'⚠️ This tool helps you stay organised — it is not legal advice and does not replace the official website. The document lists are a starting point; always verify with the agency itself.',
+    ru:'⚠️ Инструмент помогает организоваться — это не юридическая консультация и не замена официальному сайту. Списки документов — отправная точка; всегда уточняйте в самом ведомстве.'
+  },
+  agencyNotice:{
+    he:'מספרי טלפון ושעות קבלה משתנים. הקישור הרשמי הוא המקור המדויק — הטלפון כאן הוא רק קיצור דרך.',
+    fr:"Les numéros et horaires changent. Le lien officiel fait foi — le téléphone n'est qu'un raccourci.",
+    en:'Phone numbers and opening hours change. The official link is the authoritative source — the number here is just a shortcut.',
+    ru:'Телефоны и часы приёма меняются. Официальная ссылка — источник истины, номер здесь лишь для удобства.'
+  },
+
+  newCase:{he:'+ תיק חדש',fr:'+ Nouveau dossier',en:'+ New case',ru:'+ Новое дело'},
+  editCase:{he:'עריכת תיק',fr:'Modifier le dossier',en:'Edit case',ru:'Редактировать дело'},
+  addCase:{he:'תיק חדש',fr:'Nouveau dossier',en:'New case',ru:'Новое дело'},
+  save:{he:'שמירה',fr:'Enregistrer',en:'Save',ru:'Сохранить'},
+  cancel:{he:'ביטול',fr:'Annuler',en:'Cancel',ru:'Отмена'},
+  edit:{he:'עריכה',fr:'Modifier',en:'Edit',ru:'Изменить'},
+  del:{he:'מחיקה',fr:'Supprimer',en:'Delete',ru:'Удалить'},
+  confirmDel:{
+    he:'למחוק את התיק הזה? אי אפשר לשחזר.',
+    fr:'Supprimer ce dossier ? Action irréversible.',
+    en:'Delete this case? This cannot be undone.',
+    ru:'Удалить это дело? Отменить будет нельзя.'
+  },
+
+  fTemplate:{he:'תהליך מוכר (ממלא מסמכים אוטומטית)',fr:'Démarche connue (remplit les documents)',en:'Known process (fills the documents)',ru:'Известная процедура (заполнит документы)'},
+  fTitle:{he:'שם התיק',fr:'Nom du dossier',en:'Case name',ru:'Название дела'},
+  fAgency:{he:'רשות',fr:'Administration',en:'Agency',ru:'Ведомство'},
+  fStatus:{he:'שלב',fr:'Étape',en:'Stage',ru:'Этап'},
+  fRef:{he:'מספר פנייה',fr:'N° de référence',en:'Reference number',ru:'Номер обращения'},
+  fOpened:{he:'נפתח בתאריך',fr:'Ouvert le',en:'Opened on',ru:'Открыто'},
+  fDeadline:{he:'תאריך יעד',fr:'Échéance',en:'Deadline',ru:'Срок'},
+  custom:{he:'תיק חופשי (בלי תבנית)',fr:'Dossier libre (sans modèle)',en:'Free-form case (no template)',ru:'Свободное дело (без шаблона)'},
+
+  secDocs:{he:'מסמכים',fr:'Documents',en:'Documents',ru:'Документы'},
+  secNotes:{he:'יומן — מה נאמר ומתי',fr:'Journal — qui a dit quoi, quand',en:'Log — what was said, and when',ru:'Журнал — что сказали и когда'},
+  addDoc:{he:'הוספת מסמך…',fr:'Ajouter un document…',en:'Add a document…',ru:'Добавить документ…'},
+  addNote:{he:'מה קרה? (״התקשרתי, אמרו לחכות 30 יום״)',fr:'Que s’est-il passé ? (« appelé, on m’a dit d’attendre 30 jours »)',en:'What happened? ("called, told to wait 30 days")',ru:'Что произошло? («звонил, сказали ждать 30 дней»)'},
+  add:{he:'הוספה',fr:'Ajouter',en:'Add',ru:'Добавить'},
+  noDocs:{he:'אין מסמכים ברשימה.',fr:'Aucun document listé.',en:'No documents listed.',ru:'Нет документов в списке.'},
+  noNotes:{he:'עדיין אין רישומים. שווה לתעד כל שיחה — מי, מתי, ומה נאמר.',
+    fr:'Aucune entrée. Notez chaque appel : qui, quand, et ce qui a été dit.',
+    en:'No entries yet. Log every call: who, when, and what was said.',
+    ru:'Записей пока нет. Фиксируйте каждый звонок: кто, когда и что сказали.'},
+
+  statAll:{he:'תיקים',fr:'Dossiers',en:'Cases',ru:'Дел'},
+  statOpen:{he:'פתוחים',fr:'En cours',en:'Open',ru:'Открытых'},
+  statDocs:{he:'מסמכים חסרים',fr:'Documents manquants',en:'Missing documents',ru:'Не хватает документов'},
+  filterAll:{he:'הכול',fr:'Tous',en:'All',ru:'Все'},
+
+  emptyTitle:{he:'עדיין אין תיקים',fr:'Aucun dossier',en:'No cases yet',ru:'Пока нет дел'},
+  emptyBody:{
+    he:'פתחו תיק לכל תהליך שאתם מנהלים מול רשות — והכלי יזכור בשבילכם מה חסר ומה השלב.',
+    fr:"Créez un dossier pour chaque démarche en cours — l'outil retiendra ce qui manque et où ça en est.",
+    en:'Create a case for each process you are running — the tool will remember what is missing and where it stands.',
+    ru:'Создайте дело для каждой процедуры — инструмент запомнит, чего не хватает и на каком этапе.'
+  },
+  overdue:{he:'עבר התאריך',fr:'En retard',en:'Overdue',ru:'Просрочено'},
+  dueToday:{he:'היום',fr:"Aujourd'hui",en:'Today',ru:'Сегодня'},
+  daysLeft:{he:'עוד {n} ימים',fr:'{n} jours restants',en:'{n} days left',ru:'осталось {n} дн.'},
+  docsOf:{he:'{a} מתוך {b} מסמכים',fr:'{a} / {b} documents',en:'{a} of {b} documents',ru:'{a} из {b} документов'},
+
+  glossarySearch:{he:'חיפוש מונח — בעברית או בשפה שלכם',fr:'Rechercher un terme — en hébreu ou dans votre langue',en:'Search a term — in Hebrew or your language',ru:'Поиск термина — на иврите или на вашем языке'},
+  noResults:{he:'לא נמצאו תוצאות.',fr:'Aucun résultat.',en:'No results.',ru:'Ничего не найдено.'},
+  phone:{he:'טלפון',fr:'Téléphone',en:'Phone',ru:'Телефон'},
+  website:{he:'אתר רשמי',fr:'Site officiel',en:'Official site',ru:'Официальный сайт'},
+
+  exportData:{he:'⬇ גיבוי לקובץ',fr:'⬇ Sauvegarder',en:'⬇ Back up to file',ru:'⬇ Резервная копия'},
+  importData:{he:'⬆ שחזור מקובץ',fr:'⬆ Restaurer',en:'⬆ Restore from file',ru:'⬆ Восстановить'},
+  storageNote:{
+    he:'הנתונים נשמרים רק בדפדפן הזה, במכשיר הזה. ניקוי היסטוריה ימחק אותם — כדאי לגבות לקובץ מדי פעם.',
+    fr:'Les données restent dans ce navigateur, sur cet appareil. Effacer l’historique les supprime — sauvegardez de temps en temps.',
+    en:'Your data stays in this browser, on this device only. Clearing history erases it — back up to a file now and then.',
+    ru:'Данные хранятся только в этом браузере на этом устройстве. Очистка истории удалит их — делайте резервные копии.'
+  },
+  importBad:{he:'הקובץ לא תקין.',fr:'Fichier invalide.',en:'Invalid file.',ru:'Неверный файл.'},
+  importOk:{he:'השחזור הושלם.',fr:'Restauration terminée.',en:'Restore complete.',ru:'Восстановление завершено.'}
+};
+
+/* Stages a case moves through. */
+const STATUSES = [
+  {key:'todo',       he:'טרם התחלתי',      tr:'Terem Hitchalti', fr:'Pas commencé',        en:'Not started',       ru:'Не начато'},
+  {key:'collecting', he:'אוסף מסמכים',     tr:'Osef Mismachim',  fr:'Collecte de documents', en:'Gathering documents', ru:'Собираю документы'},
+  {key:'submitted',  he:'הוגש',            tr:'Hugash',          fr:'Déposé',              en:'Submitted',         ru:'Подано'},
+  {key:'waiting',    he:'ממתין לתשובה',    tr:'Mamtin Litshuva', fr:'En attente de réponse', en:'Waiting for reply', ru:'Жду ответа'},
+  {key:'problem',    he:'נתקע / בעיה',     tr:'Nitka',           fr:'Bloqué / problème',   en:'Stuck / problem',   ru:'Застряло / проблема'},
+  {key:'done',       he:'הסתיים',          tr:'Histayem',        fr:'Terminé',             en:'Done',              ru:'Завершено'}
+];
+
+/* Agencies. `he`+`tr` are shown in every language — that is the point. */
+const AGENCIES = {
+  btl:{he:'ביטוח לאומי',tr:'Bituach Leumi',fr:'Sécurité sociale',en:'National Insurance Institute',ru:'Институт национального страхования',
+       tel:'*6050',url:'https://www.btl.gov.il'},
+  rashut:{he:'רשות האוכלוסין וההגירה',tr:'Rashut HaOchlusin',fr:"Autorité de la population et de l'immigration",en:'Population & Immigration Authority',ru:'Управление населения и иммиграции',
+       tel:'*3450',url:'https://www.gov.il/he/departments/population_and_immigration_authority'},
+  klita:{he:'משרד העלייה והקליטה',tr:'Misrad HaKlita',fr:"Ministère de l'Alya et de l'Intégration",en:'Ministry of Aliyah and Integration',ru:'Министерство алии и интеграции',
+       tel:'*2994',url:'https://www.gov.il/he/departments/moia'},
+  mas:{he:'רשות המסים',tr:'Rashut HaMisim',fr:'Administration fiscale',en:'Israel Tax Authority',ru:'Налоговое управление',
+       tel:'*4954',url:'https://www.gov.il/he/departments/taxes'},
+  iriya:{he:'עירייה / רשות מקומית',tr:'Iriya',fr:'Mairie / collectivité locale',en:'Municipality / local authority',ru:'Мэрия / местный совет',
+       tel:'106',url:'https://www.gov.il/he/departments/local_government'},
+  kupa:{he:'קופת חולים',tr:'Kupat Cholim',fr:'Caisse de santé',en:'Health fund (HMO)',ru:'Больничная касса',
+       tel:'',url:'https://www.kolzchut.org.il/he/קופות_חולים'},
+  tachbura:{he:'משרד התחבורה',tr:'Misrad HaTachbura',fr:'Ministère des Transports',en:'Ministry of Transport',ru:'Министерство транспорта',
+       tel:'*5678',url:'https://www.gov.il/he/departments/ministry_of_transport_and_road_safety'},
+  chinuch:{he:'משרד החינוך',tr:'Misrad HaChinuch',fr:"Ministère de l'Éducation",en:'Ministry of Education',ru:'Министерство образования',
+       tel:'*6552',url:'https://www.gov.il/he/departments/education'},
+  bank:{he:'בנק',tr:'Bank',fr:'Banque',en:'Bank',ru:'Банк',tel:'',url:''},
+  other:{he:'אחר',tr:'Acher',fr:'Autre',en:'Other',ru:'Другое',tel:'',url:''}
+};
+
+/* Reusable documents. */
+const DOCS = {
+  passport:{he:'דרכון',tr:'Darkon',fr:'Passeport',en:'Passport',ru:'Загранпаспорт'},
+  teudat_oleh:{he:'תעודת עולה',tr:'Teudat Oleh',fr:"Certificat d'olé",en:'New immigrant certificate',ru:'Удостоверение репатрианта'},
+  teudat_zehut:{he:'תעודת זהות',tr:'Teudat Zehut',fr:"Carte d'identité israélienne",en:'Israeli ID card',ru:'Удостоверение личности'},
+  sefach:{he:'ספח תעודת זהות',tr:'Sefach',fr:"Annexe de la carte d'identité",en:'ID card appendix',ru:'Приложение к удостоверению'},
+  birth_cert:{he:'תעודת לידה (עם אפוסטיל)',tr:'Teudat Leda',fr:'Acte de naissance (apostillé)',en:'Birth certificate (apostilled)',ru:'Свидетельство о рождении (с апостилем)'},
+  marriage_cert:{he:'תעודת נישואין',tr:'Teudat Nisuin',fr:'Acte de mariage',en:'Marriage certificate',ru:'Свидетельство о браке'},
+  bank_confirm:{he:'אישור ניהול חשבון בנק',tr:'Ishur Nihul Cheshbon',fr:'Attestation de compte bancaire',en:'Bank account confirmation',ru:'Справка о банковском счёте'},
+  photos:{he:'תמונות פספורט',tr:'Tmunot Passport',fr:"Photos d'identité",en:'Passport photos',ru:'Фотографии на документы'},
+  rental:{he:'חוזה שכירות',tr:'Chozeh Schirut',fr:'Contrat de location',en:'Rental contract',ru:'Договор аренды'},
+  utility:{he:'חשבון ארנונה או חשמל',tr:'Cheshbon Arnona',fr:"Facture (taxe d'habitation ou électricité)",en:'Municipal tax or electricity bill',ru:'Счёт за арнону или электричество'},
+  diploma:{he:'תעודת תואר',tr:'Teudat Toar',fr:'Diplôme',en:'Academic diploma',ru:'Диплом'},
+  foreign_license:{he:'רישיון נהיגה זר',tr:'Rishayon Nehiga Zar',fr:'Permis de conduire étranger',en:'Foreign driving licence',ru:'Иностранное водительское удостоверение'},
+  eye_test:{he:'בדיקת ראייה (טופס ירוק)',tr:'Tofes Yarok',fr:'Test de vue (formulaire vert)',en:'Eye test (green form)',ru:'Проверка зрения (зелёная форма)'},
+  tlush:{he:'תלושי שכר',tr:'Tlushei Sachar',fr:'Bulletins de salaire',en:'Payslips',ru:'Расчётные листки'},
+  claim_form:{he:'טופס תביעה חתום',tr:'Tofes Tviya',fr:'Formulaire de demande signé',en:'Signed claim form',ru:'Подписанное заявление'}
+};
+
+/* Known processes → agency + starting document list. */
+const TEMPLATES = {
+  teudat_zehut:{agency:'rashut',docs:['passport','teudat_oleh','photos','birth_cert'],
+    he:'הנפקת תעודת זהות',fr:"Obtenir la carte d'identité",en:'Get an Israeli ID card',ru:'Получить удостоверение личности'},
+  passport_il:{agency:'rashut',docs:['teudat_zehut','photos'],
+    he:'הנפקת דרכון ישראלי',fr:'Obtenir un passeport israélien',en:'Get an Israeli passport',ru:'Получить израильский паспорт'},
+  sal_klita:{agency:'klita',docs:['teudat_zehut','teudat_oleh','bank_confirm'],
+    he:'סל קליטה',fr:"Panier d'intégration (Sal Klita)",en:'Absorption basket (Sal Klita)',ru:'Корзина абсорбции'},
+  health:{agency:'kupa',docs:['teudat_zehut','teudat_oleh','sefach'],
+    he:'רישום לקופת חולים',fr:'Inscription à une caisse de santé',en:'Register with a health fund',ru:'Регистрация в больничной кассе'},
+  btl_register:{agency:'btl',docs:['teudat_zehut','teudat_oleh','bank_confirm'],
+    he:'רישום בביטוח לאומי',fr:'Inscription à la sécurité sociale',en:'Register with National Insurance',ru:'Регистрация в Битуах Леуми'},
+  license:{agency:'tachbura',docs:['foreign_license','teudat_zehut','eye_test','photos'],
+    he:'המרת רישיון נהיגה',fr:'Conversion du permis de conduire',en:'Convert a driving licence',ru:'Замена водительских прав'},
+  bank_account:{agency:'bank',docs:['teudat_zehut','teudat_oleh','passport'],
+    he:'פתיחת חשבון בנק',fr:'Ouvrir un compte bancaire',en:'Open a bank account',ru:'Открыть банковский счёт'},
+  degree:{agency:'klita',docs:['diploma','passport','teudat_zehut'],
+    he:'הכרה בתואר אקדמי',fr:'Reconnaissance de diplôme',en:'Recognition of an academic degree',ru:'Признание диплома'},
+  child_allowance:{agency:'btl',docs:['teudat_zehut','sefach','bank_confirm','claim_form'],
+    he:'קצבת ילדים',fr:'Allocations familiales',en:'Child allowance',ru:'Пособие на детей'},
+  unemployment:{agency:'btl',docs:['teudat_zehut','tlush','claim_form','bank_confirm'],
+    he:'דמי אבטלה',fr:'Allocation chômage',en:'Unemployment benefit',ru:'Пособие по безработице'},
+  arnona:{agency:'iriya',docs:['teudat_zehut','utility','rental','tlush'],
+    he:'הנחה בארנונה',fr:"Réduction de la taxe d'habitation",en:'Municipal tax discount',ru:'Скидка на арнону'},
+  ulpan:{agency:'klita',docs:['teudat_zehut','teudat_oleh'],
+    he:'רישום לאולפן',fr:'Inscription à un Oulpan',en:'Register for Ulpan',ru:'Запись в ульпан'}
+};
+
+/* Words you will actually hear at the counter. */
+const GLOSSARY = [
+  {he:'תור',tr:'Tor',fr:'Rendez-vous',en:'Appointment',ru:'Очередь / запись'},
+  {he:'טופס',tr:'Tofes',fr:'Formulaire',en:'Form',ru:'Бланк'},
+  {he:'אישור',tr:'Ishur',fr:'Attestation / accord',en:'Confirmation / approval',ru:'Справка / подтверждение'},
+  {he:'תעודה',tr:'Teuda',fr:'Certificat',en:'Certificate',ru:'Свидетельство'},
+  {he:'מספר פנייה',tr:'Mispar Pniya',fr:'Numéro de référence',en:'Reference number',ru:'Номер обращения'},
+  {he:'אסמכתא',tr:'Asmachta',fr:'Justificatif / référence',en:'Receipt / reference',ru:'Квитанция / референс'},
+  {he:'קצבה',tr:'Kitzba',fr:'Allocation',en:'Allowance / benefit',ru:'Пособие'},
+  {he:'זכאות',tr:'Zakaut',fr:'Éligibilité / droit',en:'Eligibility',ru:'Право на получение'},
+  {he:'ערעור',tr:'Irur',fr:'Recours / appel',en:'Appeal',ru:'Апелляция'},
+  {he:'דחייה',tr:'Dchiya',fr:'Refus',en:'Rejection',ru:'Отказ'},
+  {he:'השלמת מסמכים',tr:'Hashlamat Mismachim',fr:'Compléter le dossier',en:'Completing missing documents',ru:'Досылка документов'},
+  {he:'ייפוי כוח',tr:'Yipui Koach',fr:'Procuration',en:'Power of attorney',ru:'Доверенность'},
+  {he:'אפוסטיל',tr:'Apostil',fr:'Apostille',en:'Apostille',ru:'Апостиль'},
+  {he:'תושב',tr:'Toshav',fr:'Résident',en:'Resident',ru:'Житель / резидент'},
+  {he:'עולה חדש',tr:'Oleh Chadash',fr:'Nouvel immigrant',en:'New immigrant',ru:'Новый репатриант'},
+  {he:'סניף',tr:'Snif',fr:'Agence / succursale',en:'Branch',ru:'Отделение'},
+  {he:'שעות קבלה',tr:"Sha'ot Kabala",fr:'Heures de réception',en:'Reception hours',ru:'Часы приёма'},
+  {he:'ספח',tr:'Sefach',fr:"Annexe de la carte d'identité",en:'ID appendix',ru:'Приложение к теудат зеут'},
+  {he:'טופס 101',tr:'Tofes Me’a Ve’echad',fr:'Formulaire 101 (fiche employé)',en:'Form 101 (employee tax form)',ru:'Форма 101'},
+  {he:'מקדמות',tr:'Mikdamot',fr:'Acomptes',en:'Advance payments',ru:'Авансовые платежи'},
+  {he:'ניכוי',tr:'Nikuy',fr:'Retenue / déduction',en:'Deduction',ru:'Удержание'},
+  {he:'הצהרה',tr:'Hatzhara',fr:'Déclaration',en:'Declaration',ru:'Декларация'},
+  {he:'חתימה',tr:'Chatima',fr:'Signature',en:'Signature',ru:'Подпись'},
+  {he:'צילום מסמך',tr:'Tzilum',fr:'Photocopie',en:'Photocopy',ru:'Копия документа'},
+  {he:'מקור',tr:'Makor',fr:'Original',en:'Original document',ru:'Оригинал'}
+];
+
+/* ======================= STATE ======================= */
+const KEY = 'tikpatuach.v1';
+let lang = 'he';
+let cases = [];
+let filter = 'all';
+let tab = 'cases';
+let editingId = null;
+
+function load(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(KEY) || '{}');
+    cases = Array.isArray(raw.cases) ? raw.cases : [];
+    if(raw.lang && LANGS.some(l=>l.code===raw.lang)) lang = raw.lang;
+  }catch(e){ cases = []; }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify({lang, cases})); }catch(e){}
+}
+
+/* ======================= HELPERS ======================= */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const uid = () => Math.random().toString(36).slice(2,10);
+
+function t(key, vars){
+  let s = (STR[key] && (STR[key][lang] || STR[key].en)) || key;
+  if(vars) for(const k in vars) s = s.replace('{'+k+'}', vars[k]);
+  return s;
+}
+/* Name of a reference-data entry in the current UI language. */
+function nameOf(obj){ return obj ? (obj[lang] || obj.en || obj.he) : ''; }
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+/* The Hebrew term + transliteration, shown regardless of UI language,
+   so the user can point at the screen at the counter. */
+function heChip(obj){
+  if(!obj || !obj.he) return '';
+  if(lang === 'he') return '';
+  return `<span class="he-term">${esc(obj.he)}${obj.tr?`<span class="tr">${esc(obj.tr)}</span>`:''}</span>`;
+}
+function todayISO(){
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+}
+function daysUntil(iso){
+  if(!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return null;
+  const now = new Date(todayISO() + 'T00:00:00');
+  return Math.round((d - now) / 86400000);
+}
+
+/* ======================= RENDER ======================= */
+function applyLang(){
+  const meta = LANGS.find(l=>l.code===lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = meta.dir;
+  $$('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+  $('#langbar').innerHTML = LANGS.map(l =>
+    `<button type="button" data-lang="${l.code}" aria-pressed="${l.code===lang}">${esc(l.label)}</button>`
+  ).join('');
+  $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab===tab));
+}
+
+function renderStats(){
+  const open = cases.filter(c=>c.status!=='done').length;
+  const missing = cases.reduce((n,c)=> n + c.docs.filter(d=>!d.done).length, 0);
+  $('#stats').innerHTML = `
+    <div class="stat"><b>${cases.length}</b><span>${esc(t('statAll'))}</span></div>
+    <div class="stat"><b>${open}</b><span>${esc(t('statOpen'))}</span></div>
+    <div class="stat"><b>${missing}</b><span>${esc(t('statDocs'))}</span></div>`;
+}
+
+function renderFilters(){
+  const counts = {};
+  STATUSES.forEach(s => counts[s.key] = cases.filter(c=>c.status===s.key).length);
+  const items = [`<button type="button" data-f="all" aria-pressed="${filter==='all'}">${esc(t('filterAll'))} (${cases.length})</button>`]
+    .concat(STATUSES.filter(s=>counts[s.key]>0).map(s =>
+      `<button type="button" data-f="${s.key}" aria-pressed="${filter===s.key}">${esc(nameOf(s))} (${counts[s.key]})</button>`));
+  $('#filters').innerHTML = items.join('');
+}
+
+function deadlineBadge(c){
+  const n = daysUntil(c.deadline);
+  if(n === null || c.status === 'done') return '';
+  if(n < 0)  return `<span class="badge overdue">${esc(t('overdue'))}</span>`;
+  if(n === 0) return `<span class="badge overdue">${esc(t('dueToday'))}</span>`;
+  if(n <= 14) return `<span class="badge due">${esc(t('daysLeft',{n}))}</span>`;
+  return '';
+}
+
+function renderCases(){
+  const list = cases.filter(c => filter==='all' || c.status===filter);
+  if(!cases.length){
+    $('#caseList').innerHTML =
+      `<div class="card empty"><span class="big">🗂️</span>
+        <b>${esc(t('emptyTitle'))}</b><p>${esc(t('emptyBody'))}</p></div>`;
+    return;
+  }
+  $('#caseList').innerHTML = list.map(c => {
+    const ag   = AGENCIES[c.agency];
+    const st   = STATUSES.find(s=>s.key===c.status) || STATUSES[0];
+    const done = c.docs.filter(d=>d.done).length;
+    const pct  = c.docs.length ? Math.round(done/c.docs.length*100) : 0;
+    return `
+    <div class="card case" open-state="${c.open?1:0}" data-id="${c.id}">
+      <button class="case-head" type="button" data-act="toggle">
+        <span class="case-caret">▶</span>
+        <span class="case-main">
+          <span class="case-title" dir="auto">${esc(c.title)}</span>
+          <span class="case-meta">
+            <span class="badge ${st.key}">${esc(nameOf(st))}</span>
+            ${deadlineBadge(c)}
+            <span>${esc(nameOf(ag))}</span>
+            ${heChip(ag)}
+            ${c.docs.length?`<span>· ${esc(t('docsOf',{a:done,b:c.docs.length}))}</span>`:''}
+            ${c.ref?`<span dir="ltr">· ${esc(c.ref)}</span>`:''}
+          </span>
+          ${c.docs.length?`<span class="progress"><i style="width:${pct}%"></i></span>`:''}
+        </span>
+      </button>
+      <div class="case-body">
+        <div class="sec-label">${esc(t('secDocs'))}</div>
+        <div class="docs">
+          ${c.docs.length ? c.docs.map(d => {
+            const ref = d.key ? DOCS[d.key] : null;
+            const label = ref ? nameOf(ref) : d.text;
+            return `<label class="doc">
+              <input type="checkbox" data-act="doc" data-doc="${d.id}" ${d.done?'checked':''}>
+              <span class="doc-text"><span class="lbl" dir="auto">${esc(label)}</span>${ref?heChip(ref):''}</span>
+              <button class="rm" type="button" data-act="rmdoc" data-doc="${d.id}" aria-label="×">×</button>
+            </label>`;
+          }).join('') : `<div style="font-size:13px;color:var(--ink-faint)">${esc(t('noDocs'))}</div>`}
+        </div>
+        <div class="row-add">
+          <input type="text" data-act="newdoc" dir="auto" placeholder="${esc(t('addDoc'))}">
+          <button class="btn small" type="button" data-act="adddoc">${esc(t('add'))}</button>
+        </div>
+
+        <div class="sec-label">${esc(t('secNotes'))}</div>
+        <div class="notes">
+          ${c.notes.length ? c.notes.map(n => `
+            <div class="note">
+              <button class="rm" type="button" data-act="rmnote" data-note="${n.id}" aria-label="×">×</button>
+              <span class="when" dir="ltr">${esc(n.date)}</span><span dir="auto">${esc(n.text)}</span>
+            </div>`).join('')
+            : `<div style="font-size:13px;color:var(--ink-faint)">${esc(t('noNotes'))}</div>`}
+        </div>
+        <div class="row-add">
+          <input type="text" data-act="newnote" dir="auto" placeholder="${esc(t('addNote'))}">
+          <button class="btn small" type="button" data-act="addnote">${esc(t('add'))}</button>
+        </div>
+
+        <div class="row-add" style="margin-top:14px">
+          <button class="btn small" type="button" data-act="edit">${esc(t('edit'))}</button>
+          <button class="btn small danger" type="button" data-act="del">${esc(t('del'))}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAgencies(){
+  $('#agencyList').innerHTML = Object.keys(AGENCIES).map(k => {
+    const a = AGENCIES[k];
+    if(k === 'other') return '';
+    const links = [];
+    if(a.tel) links.push(`<a href="tel:${esc(a.tel.replace(/[^0-9*#+]/g,''))}" dir="ltr">${esc(t('phone'))}: ${esc(a.tel)}</a>`);
+    if(a.url) links.push(`<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(t('website'))} ↗</a>`);
+    return `<div class="dir-item">
+      <h3>${esc(nameOf(a))}</h3>
+      <p class="native"><span class="he-term">${esc(a.he)}<span class="tr">${esc(a.tr)}</span></span></p>
+      ${links.length?`<div class="dir-links">${links.join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderGlossary(){
+  const q = ($('#glossSearch').value || '').trim().toLowerCase();
+  /* Search every language at once, not just the active one: someone using
+     the French UI may only know the English word, or vice versa. */
+  const rows = GLOSSARY.filter(g =>
+    !q || g.he.includes(q) ||
+    LANGS.some(l => String(g[l.code] || '').toLowerCase().includes(q)) ||
+    g.tr.toLowerCase().includes(q));
+  $('#glossList').innerHTML = rows.length ? rows.map(g => `
+    <div class="gterm">
+      <div><div class="g-he">${esc(g.he)}</div><div class="g-tr">${esc(g.tr)}</div></div>
+      <div class="g-def">${esc(nameOf(g))}</div>
+    </div>`).join('')
+    : `<div class="card empty">${esc(t('noResults'))}</div>`;
+}
+
+function render(){
+  applyLang();
+  $('#view-cases').hidden    = tab !== 'cases';
+  $('#view-agencies').hidden = tab !== 'agencies';
+  $('#view-glossary').hidden = tab !== 'glossary';
+  if(tab === 'cases'){ renderStats(); renderFilters(); renderCases(); }
+  if(tab === 'agencies') renderAgencies();
+  if(tab === 'glossary') renderGlossary();
+}
+
+/* ======================= MODAL ======================= */
+function fillSelects(){
+  $('#fTemplate').innerHTML = `<option value="">${esc(t('custom'))}</option>` +
+    Object.keys(TEMPLATES).map(k=>`<option value="${k}">${esc(nameOf(TEMPLATES[k]))}</option>`).join('');
+  $('#fAgency').innerHTML = Object.keys(AGENCIES)
+    .map(k=>`<option value="${k}">${esc(nameOf(AGENCIES[k]))}${AGENCIES[k].he && lang!=='he' ? ' — '+AGENCIES[k].he : ''}</option>`).join('');
+  $('#fStatus').innerHTML = STATUSES
+    .map(s=>`<option value="${s.key}">${esc(nameOf(s))}</option>`).join('');
+}
+
+function openModal(id){
+  editingId = id || null;
+  fillSelects();
+  const c = id ? cases.find(x=>x.id===id) : null;
+  $('#modalTitle').textContent = t(id ? 'editCase' : 'addCase');
+  $('#fTemplate').value = c ? (c.template || '') : '';
+  $('#fTemplate').parentElement.style.display = id ? 'none' : 'block';
+  $('#fTitle').value    = c ? c.title : '';
+  $('#fAgency').value   = c ? c.agency : 'btl';
+  $('#fStatus').value   = c ? c.status : 'todo';
+  $('#fRef').value      = c ? (c.ref||'') : '';
+  $('#fOpened').value   = c ? (c.opened||'') : todayISO();
+  $('#fDeadline').value = c ? (c.deadline||'') : '';
+  $('#modal').dataset.open = '1';
+  $('#fTitle').focus();
+}
+function closeModal(){ $('#modal').dataset.open = '0'; editingId = null; }
+
+function saveFromModal(){
+  const tpl = $('#fTemplate').value;
+  const title = $('#fTitle').value.trim() ||
+    (tpl ? nameOf(TEMPLATES[tpl]) : nameOf(AGENCIES[$('#fAgency').value]));
+  const base = {
+    title,
+    agency:   $('#fAgency').value,
+    status:   $('#fStatus').value,
+    ref:      $('#fRef').value.trim(),
+    opened:   $('#fOpened').value,
+    deadline: $('#fDeadline').value
+  };
+  if(editingId){
+    const c = cases.find(x=>x.id===editingId);
+    Object.assign(c, base);
+  }else{
+    const docs = (tpl ? TEMPLATES[tpl].docs : []).map(k=>({id:uid(), key:k, done:false}));
+    cases.unshift(Object.assign({id:uid(), template:tpl||null, docs, notes:[], open:true}, base));
+  }
+  save(); closeModal(); render();
+}
+
+/* When a template is picked, snap the agency to match it. */
+$('#fTemplate').addEventListener('change', e => {
+  const tpl = TEMPLATES[e.target.value];
+  if(tpl){
+    $('#fAgency').value = tpl.agency;
+    if(!$('#fTitle').value.trim()) $('#fTitle').value = nameOf(tpl);
+  }
+});
+
+/* ======================= EVENTS ======================= */
+$('#langbar').addEventListener('click', e => {
+  const b = e.target.closest('[data-lang]');
+  if(!b) return;
+  lang = b.dataset.lang; save(); render();
+});
+
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if(!b) return;
+  tab = b.dataset.tab; render();
+});
+
+$('#filters').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]');
+  if(!b) return;
+  filter = b.dataset.f; render();
+});
+
+$('#newCase').addEventListener('click', () => openModal(null));
+$('#saveCase').addEventListener('click', saveFromModal);
+$('#cancelCase').addEventListener('click', closeModal);
+$('#modal').addEventListener('click', e => { if(e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+
+$('#glossSearch').addEventListener('input', renderGlossary);
+
+/* Delegated handling for everything inside a case card. */
+$('#caseList').addEventListener('click', e => {
+  const card = e.target.closest('.case'); if(!card) return;
+  const c = cases.find(x=>x.id===card.dataset.id); if(!c) return;
+  const act = e.target.closest('[data-act]')?.dataset.act;
+
+  if(act === 'toggle'){ c.open = !c.open; save(); renderCases(); return; }
+  if(act === 'rmdoc'){
+    c.docs = c.docs.filter(d=>d.id !== e.target.dataset.doc); save(); renderCases(); return;
+  }
+  if(act === 'adddoc'){
+    const inp = card.querySelector('[data-act="newdoc"]');
+    const v = inp.value.trim();
+    if(v){ c.docs.push({id:uid(), text:v, done:false}); save(); renderCases(); }
+    return;
+  }
+  if(act === 'addnote'){
+    const inp = card.querySelector('[data-act="newnote"]');
+    const v = inp.value.trim();
+    if(v){ c.notes.unshift({id:uid(), date:todayISO(), text:v}); save(); renderCases(); }
+    return;
+  }
+  if(act === 'rmnote'){
+    c.notes = c.notes.filter(n=>n.id !== e.target.dataset.note); save(); renderCases(); return;
+  }
+  if(act === 'edit'){ openModal(c.id); return; }
+  if(act === 'del'){
+    if(confirm(t('confirmDel'))){ cases = cases.filter(x=>x.id!==c.id); save(); render(); }
+    return;
+  }
+});
+
+/* Checkbox ticks come through `change`, not `click`. */
+$('#caseList').addEventListener('change', e => {
+  if(e.target.dataset.act !== 'doc') return;
+  const card = e.target.closest('.case');
+  const c = cases.find(x=>x.id===card.dataset.id); if(!c) return;
+  const d = c.docs.find(x=>x.id===e.target.dataset.doc); if(!d) return;
+  d.done = e.target.checked;
+  save(); renderStats(); renderCases();
+});
+
+/* Enter submits the inline add-row inputs. */
+$('#caseList').addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return;
+  const a = e.target.dataset.act;
+  if(a === 'newdoc' || a === 'newnote'){
+    e.preventDefault();
+    e.target.closest('.row-add').querySelector('.btn').click();
+  }
+});
+
+/* ---------- backup / restore ---------- */
+$('#exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({lang, cases}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tik-patuach-' + todayISO() + '.json';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+});
+$('#importBtn').addEventListener('click', () => $('#importFile').click());
+$('#importFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const data = JSON.parse(r.result);
+      if(!Array.isArray(data.cases)) throw 0;
+      cases = data.cases;
+      if(data.lang && LANGS.some(l=>l.code===data.lang)) lang = data.lang;
+      save(); render(); alert(t('importOk'));
+    }catch(err){ alert(t('importBad')); }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+});
+
+/* ======================= BOOT ======================= */
+load();
+render();
+</script>
+</body>
+</html>
