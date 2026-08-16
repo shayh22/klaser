@@ -18,7 +18,7 @@ shown **with its Hebrew name and a transliteration next to it, in every
 language** — you can hand the phone to the clerk, or read the transliteration
 out loud.
 
-![French interface showing Hebrew terms beside each label](docs/screenshot-fr.png)
+![French interface showing Hebrew terms beside each label, with document scans attached](docs/screenshot-fr.png)
 
 ## What it does
 
@@ -26,6 +26,9 @@ out loud.
   date and deadline. Deadlines inside two weeks are flagged; overdue ones go red.
 - **Documents** — each case gets a checklist. Twelve common processes come with
   their document list pre-filled; you can add your own items to any case.
+- **Scans** — attach a photo of any document straight from the phone camera, or
+  a file from disk. Thumbnails sit under the document; tap to view full size,
+  save a copy, or delete. Images are shrunk to a readable size before storing.
 - **Log** — a dated note for every phone call and visit. Who said what, and when.
   This is the part that wins arguments later.
 - **Agency directory** — Bituach Leumi, the Population Authority, the Ministry
@@ -42,12 +45,26 @@ No build, no dependencies, no server. Open `index.html` in a browser.
 To deploy: GitHub Pages from the repository root. The empty `.nojekyll` file
 stops Jekyll from touching it.
 
-## Privacy
+## Where your data lives
 
-Everything is stored in `localStorage`, in your browser, on your device. Nothing
-is uploaded and there is no analytics or tracking of any kind — which matters,
-because these are case numbers and immigration records. The flip side is that
-clearing your browser history deletes it, so the backup button is worth using.
+Cases, documents and notes are kept in `localStorage`. **Scanned images are kept
+as blobs in IndexedDB** — `localStorage` caps out around 5MB, far too small for
+photos, while IndexedDB will hold hundreds of megabytes. The case record stores
+only the image's id and a little metadata, and resolves the picture on demand.
+
+Nothing is uploaded. There are no network requests at all, no analytics and no
+tracking — which matters, because these are case numbers, ID documents and
+immigration records.
+
+A note on what a web page can and cannot do: a browser will never hand a page a
+file's real path on disk, and pages cannot link to `file://` locations. So
+"keep the file where it is and just save a link" isn't possible on the web. The
+image has to be copied into the browser's own storage, which is what happens
+here — on your device, but inside the browser rather than in your photo library.
+
+The flip side is that clearing your browser history erases everything, scans
+included. Back up to a file now and then; the backup asks whether to include the
+images, since they dominate the file size.
 
 ## Editing the content
 

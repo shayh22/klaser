@@ -185,6 +185,28 @@
   .doc .rm{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
   .doc .rm:hover{color:var(--danger)}
 
+  /* ---------- scans ---------- */
+  .doc-wrap{display:grid;gap:5px}
+  .ic-btn{
+    background:none;border:none;cursor:pointer;font-size:15px;line-height:1;padding:0 4px;
+    filter:grayscale(.4);opacity:.75;transition:.12s;
+  }
+  .ic-btn:hover{filter:none;opacity:1;transform:scale(1.12)}
+  .scans{display:flex;gap:6px;flex-wrap:wrap;padding-inline-start:30px}
+  .thumb{
+    width:54px;height:54px;border-radius:9px;border:1.5px solid var(--line);
+    background:var(--card-soft) center/cover no-repeat;cursor:pointer;padding:0;
+    display:grid;place-items:center;font-size:20px;transition:.12s;
+  }
+  .thumb:hover{border-color:var(--brand);transform:scale(1.05)}
+  .thumb.missing{opacity:.4}
+  .thumb:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+  .scan-box{max-width:640px;text-align:center}
+  .scan-box img{max-width:100%;max-height:65vh;border-radius:12px;display:block;margin:0 auto}
+  .scan-fallback{font-size:56px;padding:26px 0}
+  .scan-meta{font-size:12px;color:var(--ink-faint);margin-top:9px;word-break:break-all}
+  a.btn{text-decoration:none;display:inline-block;text-align:center}
+
   .progress{display:block;height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 0}
   .progress i{display:block;height:100%;background:var(--brand);border-radius:6px;transition:width .2s}
 
@@ -303,6 +325,22 @@
   </footer>
 </div>
 
+<input type="file" id="scanInput" accept="image/*,application/pdf" multiple capture="environment" class="sr">
+
+<!-- ============ SCAN VIEWER ============ -->
+<div class="modal" id="scanModal" role="dialog" aria-modal="true">
+  <div class="modal-box scan-box">
+    <img id="scanImg" alt="">
+    <div id="scanFallback" class="scan-fallback" hidden>📄</div>
+    <div class="scan-meta" id="scanMeta"></div>
+    <div class="modal-actions">
+      <a class="btn" id="scanDownload" download data-t="scanSave"></a>
+      <button class="btn danger" id="scanDelete" data-t="scanDelete"></button>
+      <button class="btn" id="scanClose" data-t="scanClose"></button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ CASE EDITOR MODAL ============ -->
 <div class="modal" id="modal" role="dialog" aria-modal="true">
   <div class="modal-box">
@@ -419,6 +457,26 @@ const STR = {
     en:'No entries yet. Log every call: who, when, and what was said.',
     ru:'Записей пока нет. Фиксируйте каждый звонок: кто, когда и что сказали.'},
 
+  attach:{he:'צירוף צילום או קובץ',fr:'Joindre une photo ou un fichier',en:'Attach a photo or file',ru:'Прикрепить фото или файл'},
+  scanSave:{he:'שמירה למכשיר',fr:'Enregistrer',en:'Save to device',ru:'Сохранить'},
+  scanDelete:{he:'מחיקת הצילום',fr:'Supprimer',en:'Delete scan',ru:'Удалить скан'},
+  scanClose:{he:'סגירה',fr:'Fermer',en:'Close',ru:'Закрыть'},
+  scanConfirmDel:{he:'למחוק את הצילום הזה?',fr:'Supprimer ce document ?',en:'Delete this scan?',ru:'Удалить этот скан?'},
+  scanQuota:{
+    he:'אין מספיק מקום בדפדפן לשמור את הצילום. כדאי למחוק צילומים ישנים או לגבות לקובץ.',
+    fr:"Espace insuffisant dans le navigateur. Supprimez d'anciens scans ou faites une sauvegarde.",
+    en:'Not enough browser storage for this scan. Delete older scans or back up to a file.',
+    ru:'Недостаточно места в браузере. Удалите старые сканы или сделайте резервную копию.'},
+  scanBig:{
+    he:'הקובץ גדול מדי (מעל 25MB).',fr:'Fichier trop volumineux (plus de 25 Mo).',
+    en:'File is too large (over 25MB).',ru:'Файл слишком большой (более 25 МБ).'},
+  /* The count sits in parentheses so no language has to agree a noun with it —
+     Hebrew and Russian both inflect differently at 1, 2 and 5+. */
+  backupScans:{
+    he:'לכלול בגיבוי גם את הצילומים ({n})? גודל הקובץ יהיה בערך {size}.\n\nאישור = כולל צילומים. ביטול = בלי צילומים.',
+    fr:'Inclure aussi les scans ({n}) dans la sauvegarde ? Taille du fichier : environ {size}.\n\nOK = avec les scans. Annuler = sans.',
+    en:'Include the scans ({n}) in the backup? The file will be about {size}.\n\nOK = with scans. Cancel = without.',
+    ru:'Включить сканы ({n}) в резервную копию? Размер файла — около {size}.\n\nОК = со сканами. Отмена = без.'},
   statAll:{he:'תיקים',fr:'Dossiers',en:'Cases',ru:'Дел'},
   statOpen:{he:'פתוחים',fr:'En cours',en:'Open',ru:'Открытых'},
   statDocs:{he:'מסמכים חסרים',fr:'Documents manquants',en:'Missing documents',ru:'Не хватает документов'},
@@ -444,10 +502,10 @@ const STR = {
   exportData:{he:'⬇ גיבוי לקובץ',fr:'⬇ Sauvegarder',en:'⬇ Back up to file',ru:'⬇ Резервная копия'},
   importData:{he:'⬆ שחזור מקובץ',fr:'⬆ Restaurer',en:'⬆ Restore from file',ru:'⬆ Восстановить'},
   storageNote:{
-    he:'הנתונים נשמרים רק בדפדפן הזה, במכשיר הזה. ניקוי היסטוריה ימחק אותם — כדאי לגבות לקובץ מדי פעם.',
-    fr:'Les données restent dans ce navigateur, sur cet appareil. Effacer l’historique les supprime — sauvegardez de temps en temps.',
-    en:'Your data stays in this browser, on this device only. Clearing history erases it — back up to a file now and then.',
-    ru:'Данные хранятся только в этом браузере на этом устройстве. Очистка истории удалит их — делайте резервные копии.'
+    he:'הנתונים והצילומים נשמרים רק בדפדפן הזה, במכשיר הזה. שום דבר לא נשלח לשום שרת. ניקוי היסטוריה ימחק הכול — כדאי לגבות לקובץ מדי פעם.',
+    fr:'Les données et les scans restent dans ce navigateur, sur cet appareil. Rien n’est envoyé à un serveur. Effacer l’historique supprime tout — sauvegardez de temps en temps.',
+    en:'Your data and scans stay in this browser, on this device only. Nothing is sent to any server. Clearing history erases everything — back up to a file now and then.',
+    ru:'Данные и сканы хранятся только в этом браузере на этом устройстве. Ничего не отправляется на сервер. Очистка истории удалит всё — делайте резервные копии.'
   },
   importBad:{he:'הקובץ לא תקין.',fr:'Fichier invalide.',en:'Invalid file.',ru:'Неверный файл.'},
   importOk:{he:'השחזור הושלם.',fr:'Restauration terminée.',en:'Restore complete.',ru:'Восстановление завершено.'}
@@ -615,6 +673,84 @@ function daysUntil(iso){
   return Math.round((d - now) / 86400000);
 }
 
+/* ======================= SCANS =======================
+   Images live in IndexedDB (blobs) rather than localStorage, which is far too
+   small for photos. The case record stores only lightweight metadata plus the
+   id that resolves to the blob. Nothing is ever uploaded. */
+const DB_NAME='klaser', STORE='scans', MAX_BYTES=25*1024*1024;
+let _db=null;
+function idb(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(DB_NAME,1);
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE); };
+    r.onsuccess=()=>{ _db=r.result; res(_db); };
+    r.onerror=()=>rej(r.error);
+  });
+}
+function idbTx(mode,fn){
+  return idb().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction(STORE,mode), req=fn(tx.objectStore(STORE));
+    tx.oncomplete=()=>res(req?req.result:undefined);
+    tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error);
+  }));
+}
+const scanPut=(id,blob)=>idbTx('readwrite',st=>st.put(blob,id));
+const scanGet=id      =>idbTx('readonly', st=>st.get(id));
+const scanDel=id      =>idbTx('readwrite',st=>st.delete(id));
+
+/* Shrink a photo before storing it: a phone camera shot is several MB, but a
+   readable document scan needs far less. Non-images pass through untouched. */
+function compress(file, maxDim=1600, quality=.75){
+  return new Promise(res=>{
+    if(!/^image\//.test(file.type) || file.type==='image/gif') return res(file);
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{
+      let w=img.naturalWidth, h=img.naturalHeight;
+      const scale=Math.min(1, maxDim/Math.max(w,h));
+      w=Math.max(1,Math.round(w*scale)); h=Math.max(1,Math.round(h*scale));
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      c.toBlob(b=>{ URL.revokeObjectURL(url); res(b&&b.size<file.size ? b : file); },'image/jpeg',quality);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); res(file); };
+    img.src=url;
+  });
+}
+
+/* Thumbnails are painted after render, since reading blobs is async. */
+let thumbUrls=[];
+function revokeThumbs(){ thumbUrls.forEach(u=>URL.revokeObjectURL(u)); thumbUrls=[]; }
+async function hydrateThumbs(){
+  revokeThumbs();
+  for(const el of $$('.thumb[data-scan]')){
+    try{
+      const blob=await scanGet(el.dataset.scan);
+      if(!blob){ el.classList.add('missing'); el.textContent='?'; continue; }
+      if(/^image\//.test(blob.type)){
+        const u=URL.createObjectURL(blob); thumbUrls.push(u);
+        el.style.backgroundImage='url("'+u+'")';
+      }else{ el.textContent='\u{1F4C4}'; }
+    }catch(e){ el.classList.add('missing'); }
+  }
+}
+const allScans = () => cases.flatMap(c=>c.docs.flatMap(d=>d.scans||[]));
+function humanSize(bytes){
+  return bytes < 1048576 ? Math.max(1,Math.round(bytes/1024)) + ' KB'
+                         : (bytes/1048576).toFixed(1) + ' MB';
+}
+
+function blobToDataURL(b){
+  return new Promise((res,rej)=>{ const fr=new FileReader();
+    fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(b); });
+}
+function dataURLToBlob(u){
+  const [head,data]=u.split(','); const mime=(/:(.*?);/.exec(head)||[,'application/octet-stream'])[1];
+  const bin=atob(data), arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr],{type:mime});
+}
+
 /* ======================= RENDER ======================= */
 function applyLang(){
   const meta = LANGS.find(l=>l.code===lang);
@@ -690,11 +826,19 @@ function renderCases(){
           ${c.docs.length ? c.docs.map(d => {
             const ref = d.key ? DOCS[d.key] : null;
             const label = ref ? nameOf(ref) : d.text;
-            return `<label class="doc">
-              <input type="checkbox" data-act="doc" data-doc="${d.id}" ${d.done?'checked':''}>
-              <span class="doc-text"><span class="lbl" dir="auto">${esc(label)}</span>${ref?heChip(ref):''}</span>
-              <button class="rm" type="button" data-act="rmdoc" data-doc="${d.id}" aria-label="×">×</button>
-            </label>`;
+            const scans = d.scans || [];
+            return `<div class="doc-wrap">
+              <label class="doc">
+                <input type="checkbox" data-act="doc" data-doc="${d.id}" ${d.done?'checked':''}>
+                <span class="doc-text"><span class="lbl" dir="auto">${esc(label)}</span>${ref?heChip(ref):''}</span>
+                <button class="ic-btn" type="button" data-act="attach" data-doc="${d.id}"
+                        title="${esc(t('attach'))}" aria-label="${esc(t('attach'))}">\u{1F4F7}</button>
+                <button class="rm" type="button" data-act="rmdoc" data-doc="${d.id}" aria-label="×">×</button>
+              </label>
+              ${scans.length?`<div class="scans">${scans.map(sc=>
+                `<button class="thumb" type="button" data-act="openscan" data-scan="${sc.id}" data-doc="${d.id}"
+                         aria-label="${esc(sc.name||'scan')}"></button>`).join('')}</div>`:''}
+            </div>`;
           }).join('') : `<div style="font-size:13px;color:var(--ink-faint)">${esc(t('noDocs'))}</div>`}
         </div>
         <div class="row-add">
@@ -723,6 +867,7 @@ function renderCases(){
       </div>
     </div>`;
   }).join('');
+  hydrateThumbs();
 }
 
 function renderAgencies(){
@@ -848,7 +993,7 @@ $('#newCase').addEventListener('click', () => openModal(null));
 $('#saveCase').addEventListener('click', saveFromModal);
 $('#cancelCase').addEventListener('click', closeModal);
 $('#modal').addEventListener('click', e => { if(e.target.id === 'modal') closeModal(); });
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ closeModal(); closeScan(); } });
 
 $('#glossSearch').addEventListener('input', renderGlossary);
 
@@ -859,7 +1004,16 @@ $('#caseList').addEventListener('click', e => {
   const act = e.target.closest('[data-act]')?.dataset.act;
 
   if(act === 'toggle'){ c.open = !c.open; save(); renderCases(); return; }
+  if(act === 'attach'){
+    pending = {caseId:c.id, docId:e.target.dataset.doc};
+    $('#scanInput').click(); return;
+  }
+  if(act === 'openscan'){
+    openScan(c.id, e.target.dataset.doc, e.target.dataset.scan); return;
+  }
   if(act === 'rmdoc'){
+    const gone = c.docs.find(d=>d.id === e.target.dataset.doc);
+    (gone && gone.scans || []).forEach(sc => scanDel(sc.id).catch(()=>{}));
     c.docs = c.docs.filter(d=>d.id !== e.target.dataset.doc); save(); renderCases(); return;
   }
   if(act === 'adddoc'){
@@ -879,7 +1033,10 @@ $('#caseList').addEventListener('click', e => {
   }
   if(act === 'edit'){ openModal(c.id); return; }
   if(act === 'del'){
-    if(confirm(t('confirmDel'))){ cases = cases.filter(x=>x.id!==c.id); save(); render(); }
+    if(confirm(t('confirmDel'))){
+      c.docs.forEach(d => (d.scans||[]).forEach(sc => scanDel(sc.id).catch(()=>{})));
+      cases = cases.filter(x=>x.id!==c.id); save(); render();
+    }
     return;
   }
 });
@@ -904,9 +1061,92 @@ $('#caseList').addEventListener('keydown', e => {
   }
 });
 
+/* ---------- scan capture + viewer ---------- */
+let pending = null;      /* which document the file picker is filling */
+let viewing = null;      /* {caseId, docId, scanId} currently in the lightbox */
+let viewUrl = null;
+
+$('#scanInput').addEventListener('change', async e => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if(!files.length || !pending) return;
+  const c = cases.find(x=>x.id===pending.caseId);
+  const d = c && c.docs.find(x=>x.id===pending.docId);
+  if(!d) return;
+  d.scans = d.scans || [];
+  for(const f of files){
+    if(f.size > MAX_BYTES){ alert(t('scanBig')); continue; }
+    try{
+      const blob = await compress(f);
+      const id = uid();
+      await scanPut(id, blob);
+      d.scans.push({id, name:f.name || 'scan', type:blob.type, size:blob.size, added:todayISO()});
+    }catch(err){ alert(t('scanQuota')); break; }
+  }
+  pending = null;
+  save(); renderCases();
+});
+
+async function openScan(caseId, docId, scanId){
+  const c = cases.find(x=>x.id===caseId);
+  const d = c && c.docs.find(x=>x.id===docId);
+  const meta = d && (d.scans||[]).find(x=>x.id===scanId);
+  if(!meta) return;
+  viewing = {caseId, docId, scanId};
+  const blob = await scanGet(scanId);
+  if(viewUrl){ URL.revokeObjectURL(viewUrl); viewUrl=null; }
+  const img = $('#scanImg'), fb = $('#scanFallback');
+  if(blob){
+    viewUrl = URL.createObjectURL(blob);
+    const isImg = /^image\//.test(blob.type);
+    img.hidden = !isImg; fb.hidden = isImg;
+    if(isImg) img.src = viewUrl;
+    $('#scanDownload').href = viewUrl;
+    $('#scanDownload').download = meta.name || 'scan';
+    $('#scanDownload').hidden = false;
+  }else{
+    img.hidden = true; fb.hidden = false; $('#scanDownload').hidden = true;
+  }
+  $('#scanMeta').textContent =
+    (meta.name||'') + ' · ' + Math.max(1,Math.round((meta.size||0)/1024)) + 'KB · ' + (meta.added||'');
+  $('#scanModal').dataset.open = '1';
+}
+function closeScan(){
+  $('#scanModal').dataset.open = '0';
+  $('#scanImg').removeAttribute('src');
+  if(viewUrl){ URL.revokeObjectURL(viewUrl); viewUrl=null; }
+  viewing = null;
+}
+$('#scanClose').addEventListener('click', closeScan);
+$('#scanModal').addEventListener('click', e => { if(e.target.id==='scanModal') closeScan(); });
+$('#scanDelete').addEventListener('click', async () => {
+  if(!viewing || !confirm(t('scanConfirmDel'))) return;
+  const {caseId, docId, scanId} = viewing;
+  const c = cases.find(x=>x.id===caseId);
+  const d = c && c.docs.find(x=>x.id===docId);
+  if(d) d.scans = (d.scans||[]).filter(x=>x.id!==scanId);
+  await scanDel(scanId).catch(()=>{});
+  closeScan(); save(); renderCases();
+});
+
 /* ---------- backup / restore ---------- */
-$('#exportBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({lang, cases}, null, 2)], {type:'application/json'});
+$('#exportBtn').addEventListener('click', async () => {
+  const metas = allScans();
+  let blobs = null;
+  if(metas.length){
+    /* Scans dominate the file size, so let the user choose. A backup without
+       them still restores every case, document and note. */
+    const bytes = metas.reduce((n,m)=>n+(m.size||0),0) * 1.37;  /* base64 overhead */
+    if(confirm(t('backupScans',{n:metas.length, size:humanSize(bytes)}))){
+      blobs = {};
+      for(const m of metas){
+        try{ const b = await scanGet(m.id); if(b) blobs[m.id] = await blobToDataURL(b); }catch(e){}
+      }
+    }
+  }
+  const payload = {lang, cases};
+  if(blobs) payload.scanData = blobs;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'klaser-' + todayISO() + '.json';
@@ -917,12 +1157,17 @@ $('#importBtn').addEventListener('click', () => $('#importFile').click());
 $('#importFile').addEventListener('change', e => {
   const f = e.target.files[0]; if(!f) return;
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     try{
       const data = JSON.parse(r.result);
       if(!Array.isArray(data.cases)) throw 0;
       cases = data.cases;
       if(data.lang && LANGS.some(l=>l.code===data.lang)) lang = data.lang;
+      if(data.scanData){
+        for(const id in data.scanData){
+          try{ await scanPut(id, dataURLToBlob(data.scanData[id])); }catch(e){}
+        }
+      }
       save(); render(); alert(t('importOk'));
     }catch(err){ alert(t('importBad')); }
   };
