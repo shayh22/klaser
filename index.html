@@ -327,6 +327,17 @@
   }
   footer.foot{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-top:22px;line-height:1.7}
   footer.foot .btn{margin:0 3px}
+  .credit{
+    margin-top:16px;padding-top:14px;border-top:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  }
+  .credit img{width:44px;height:44px;border-radius:10px;object-fit:contain;flex:0 0 auto}
+  .credit .c-txt{text-align:start}
+  .credit .c-lead{display:block;font-size:11.5px;color:var(--ink-soft)}
+  .credit .c-name{font-size:14px;font-weight:700;color:var(--ink);text-decoration:none}
+  a.c-name:hover{text-decoration:underline;color:var(--brand-ink)}
+  .credit .c-tr{font-size:11px;font-weight:500;color:var(--ink-soft);direction:ltr;unicode-bidi:isolate}
+  .credit .c-tag{display:block;font-size:11.5px;color:var(--ink-soft);max-width:34ch;line-height:1.45}
   .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   /* file inputs are opened by their own buttons; keeping them focusable adds a
      mystery tab stop with no accessible name */
@@ -385,6 +396,7 @@
       <input type="file" id="importFile" accept="application/json" class="sr">
     </p>
     <p data-t="storageNote"></p>
+    <div class="credit" id="credit"></div>
   </footer>
 </div>
 
@@ -586,6 +598,12 @@ const STR = {
     en:'Short codes starting with * often do not work from abroad or on a foreign SIM, so a regular number is listed too. Israel dialling code: +972.',
     ru:'Короткие номера со звёздочкой часто не работают из-за границы или с иностранной SIM — поэтому указан и обычный номер. Код Израиля: +972.'},
   shareApp:{he:'שיתוף הכלי',fr:'Partager l’outil',en:'Share this tool',ru:'Поделиться'},
+  builtBy:{he:'פותח על ידי',fr:'Développé par',en:'Built by',ru:'Разработано'},
+  builtByTag:{
+    he:'פיתוח תוכנה מותאם, במהירות הבזק, בטכנולוגיית AI',
+    fr:'Développement logiciel sur mesure, à la vitesse de l’éclair, propulsé par l’IA',
+    en:'Custom software development, at lightning speed, powered by AI',
+    ru:'Разработка ПО на заказ — молниеносно, на технологии ИИ'},
   shareText:{
     he:'קלסר — כלי חינמי לעקוב אחרי תהליכים מול הרשויות בישראל, בעברית/צרפתית/אנגלית/רוסית:',
     fr:'Klaser — un outil gratuit pour suivre vos démarches administratives en Israël (hébreu/français/anglais/russe) :',
@@ -742,6 +760,17 @@ const GLOSSARY = [
   {he:'צילום מסמך',tr:'Tzilum',fr:'Photocopie',en:'Photocopy',ru:'Копия документа'},
   {he:'מקור',tr:'Makor',fr:'Original',en:'Original document',ru:'Оригинал'}
 ];
+
+/* Developer credit. `logo` must be a data: URI, never an external URL — the
+   app makes no network requests at all and that property is asserted in the
+   tests; a hosted image would break it. Leave `url` empty for a plain,
+   non-clickable credit. */
+const CREDIT = {
+  he:'ברכת הנשיא',
+  tr:'Birkat HaNasi',
+  url:'',     /* company website */
+  logo:''     /* data:image/png;base64,... */
+};
 
 /* The processes a new arrival actually starts with, in rough chronological
    order. Keys index into TEMPLATES — no separate data to keep in sync. */
@@ -1103,8 +1132,22 @@ function renderGlossary(){
     : `<div class="card empty">${esc(t('noResults'))}</div>`;
 }
 
+function renderCredit(){
+  const nameHtml = CREDIT.url
+    ? `<a class="c-name" href="${esc(CREDIT.url)}" target="_blank" rel="noopener">${esc(CREDIT.he)}</a>`
+    : `<span class="c-name">${esc(CREDIT.he)}</span>`;
+  $('#credit').innerHTML = `
+    ${CREDIT.logo?`<img src="${esc(CREDIT.logo)}" alt="${esc(CREDIT.he)}">`:''}
+    <span class="c-txt">
+      <span class="c-lead">${esc(t('builtBy'))}</span>
+      ${nameHtml}${CREDIT.tr?` <span class="c-tr">${esc(CREDIT.tr)}</span>`:''}
+      <span class="c-tag">${esc(t('builtByTag'))}</span>
+    </span>`;
+}
+
 function render(){
   applyLang();
+  renderCredit();
   $('#view-cases').hidden    = tab !== 'cases';
   $('#view-agencies').hidden = tab !== 'agencies';
   $('#view-glossary').hidden = tab !== 'glossary';
