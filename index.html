@@ -760,6 +760,16 @@ function load(){
   try{
     const raw = JSON.parse(localStorage.getItem(KEY) || '{}');
     cases = Array.isArray(raw.cases) ? raw.cases : [];
+    /* titles saved before titles were derived are frozen in their creation
+       language; release the ones that are still just the template name */
+    cases.forEach(c => {
+      if(!c.title) return;
+      const names = [];
+      const tpl = c.template && TEMPLATES[c.template];
+      const ag  = AGENCIES[c.agency];
+      LANGS.forEach(l => { if(tpl) names.push(tpl[l.code]); if(ag) names.push(ag[l.code]); });
+      if(names.indexOf(c.title) !== -1) c.title = '';
+    });
     if(raw.lang && LANGS.some(l=>l.code===raw.lang)) lang = raw.lang;
   }catch(e){ cases = []; }
 }
@@ -779,6 +789,18 @@ function t(key, vars){
 }
 /* Name of a reference-data entry in the current UI language. */
 function nameOf(obj){ return obj ? (obj[lang] || obj.en || obj.he) : ''; }
+
+/* A case created from a template has no title of its own: it is named after
+   the template, in whatever language is showing. Storing that name would
+   freeze it into the creation language, so it is derived on every render.
+   An empty c.title means "auto"; anything else is the user's own words and
+   is never touched. */
+function autoTitle(template, agency){
+  const tpl = template && TEMPLATES[template];
+  if(tpl) return nameOf(tpl);
+  return AGENCIES[agency] ? nameOf(AGENCIES[agency]) : '';
+}
+function caseTitle(c){ return c.title || autoTitle(c.template, c.agency); }
 
 function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -967,7 +989,7 @@ function renderCases(){
       <button class="case-head" type="button" data-act="toggle">
         <span class="case-caret">▶</span>
         <span class="case-main">
-          <span class="case-title" dir="auto">${esc(c.title)}</span>
+          <span class="case-title" dir="auto">${esc(caseTitle(c))}</span>
           <span class="case-meta">
             <span class="badge ${st.key}">${esc(nameOf(st))}</span>
             ${deadlineBadge(c)}
@@ -1114,7 +1136,7 @@ function openModal(id){
   $('#modalTitle').textContent = t(id ? 'editCase' : 'addCase');
   $('#fTemplate').value = c ? (c.template || '') : '';
   $('#fTemplate').parentElement.style.display = id ? 'none' : 'block';
-  $('#fTitle').value    = c ? c.title : '';
+  $('#fTitle').value    = c ? caseTitle(c) : '';
   $('#fAgency').value   = c ? c.agency : 'btl';
   $('#fStatus').value   = c ? c.status : 'todo';
   $('#fRef').value      = c ? (c.ref||'') : '';
@@ -1131,7 +1153,7 @@ function addFromTemplate(key){
   const tpl = TEMPLATES[key];
   if(!tpl) return;
   cases.unshift({
-    id:uid(), template:key, title:nameOf(tpl), agency:tpl.agency, status:'todo',
+    id:uid(), template:key, title:'', agency:tpl.agency, status:'todo',
     ref:'', opened:todayISO(), deadline:'', open:true,
     docs: tpl.docs.map(k=>({id:uid(), key:k, done:false})), notes:[]
   });
@@ -1140,11 +1162,15 @@ function addFromTemplate(key){
 
 function saveFromModal(){
   const tpl = $('#fTemplate').value;
-  const title = $('#fTitle').value.trim() ||
-    (tpl ? nameOf(TEMPLATES[tpl]) : nameOf(AGENCIES[$('#fAgency').value]));
+  const agency = $('#fAgency').value;
+  const typed = $('#fTitle').value.trim();
+  /* left as the template/agency name -> keep it automatic so it follows the
+     interface language; renamed -> keep exactly what was typed */
+  const template = editingId ? (cases.find(x=>x.id===editingId)||{}).template : (tpl || null);
+  const title = (!typed || typed === autoTitle(template, agency)) ? '' : typed;
   const base = {
     title,
-    agency:   $('#fAgency').value,
+    agency:   agency,
     status:   $('#fStatus').value,
     ref:      $('#fRef').value.trim(),
     opened:   $('#fOpened').value,
