@@ -37,12 +37,24 @@ export function createAnthropicAdapter({ apiKey, fetchImpl = fetch }) {
 
     const content = [];
     if (image) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: image }
-      });
+      /* A PDF is a `document` block, not an `image` one — sending a PDF as an
+         image is rejected. The endpoint accepts PDFs (people forward the letter
+         the agency emailed them rather than photographing paper), so both shapes
+         have to be right. */
+      const mt = mediaType || 'image/jpeg';
+      content.push(mt === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: mt, data: image } }
+        : { type: 'image',    source: { type: 'base64', media_type: mt, data: image } });
     }
     content.push({ type: 'text', text: instruction });
+
+    const body = {
+      model,
+      max_tokens: maxTokens,
+      system: systemBlocks,
+      messages: [{ role: 'user', content }],
+      output_config: { format: { type: 'json_schema', schema } }
+    };
 
     const res = await fetchImpl(API, {
       method: 'POST',
@@ -51,20 +63,14 @@ export function createAnthropicAdapter({ apiKey, fetchImpl = fetch }) {
         'x-api-key': apiKey,
         'anthropic-version': VERSION
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        system: systemBlocks,
-        messages: [{ role: 'user', content }],
-        output_config: { format: { type: 'json_schema', schema } }
-      })
+      body: JSON.stringify(body)
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => '');
+      const detail = await res.text().catch(() => '');
       const err = new Error(`anthropic ${res.status}`);
       err.status = res.status;
-      err.body = body.slice(0, 500);
+      err.body = detail.slice(0, 500);
       throw err;
     }
 
@@ -82,9 +88,11 @@ export function createAnthropicAdapter({ apiKey, fetchImpl = fetch }) {
 
   return {
     name: 'anthropic',
-    identify: opts => call({ model: 'claude-haiku-4-5', maxTokens: 400, ...opts }),
-    read:     opts => call({ model: 'claude-sonnet-5',  maxTokens: 2000, ...opts }),
-    escalate: opts => call({ model: 'claude-opus-5',    maxTokens: 2000, ...opts }),
+    identify: opts => call({ model: 'claude-haiku-4-5', maxTokens: 600, ...opts }),
+    read:     opts => call({ model: 'claude-sonnet-5',  maxTokens: 3000, ...opts }),
+    /* Opus 5 thinks by default and thinking shares the max_tokens budget, so the
+       escalation needs headroom the other two do not. */
+    escalate: opts => call({ model: 'claude-opus-5',    maxTokens: 8000, ...opts }),
     costOf
   };
 }
