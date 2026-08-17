@@ -5,7 +5,7 @@
   "description": "What /v1/analyze returns for one photographed letter. Used verbatim as the model's structured-output schema. Enum members are injected at boot from contracts/catalogue.json — see the $comment on each field for which path supplies them. The schema is never hand-edited to add a key; add it to index.html and regenerate the catalogue.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["agency", "template", "required_docs", "extra_docs", "deadline", "reference", "confidence", "language"],
+  "required": ["agency", "template", "required_docs", "extra_docs", "deadline", "reference", "confidence", "language", "form_code", "form_title_he"],
   "properties": {
     "agency": {
       "type": ["string", "null"],
@@ -81,6 +81,22 @@
       "type": ["string", "null"],
       "maxLength": 60,
       "description": "The אסמכתא / case number, copied character for character. This is the thing worth arguing with later."
+    },
+    "form_code": {
+      "type": ["string", "null"],
+      "maxLength": 40,
+      "description": "The form or letter code printed on the page — 'בל/250', 'טופס 101', a departmental letter number. Israeli agency correspondence almost always carries one, and it is the cheapest reliable way to recognise a letter as one we have seen before.",
+      "$comment": "Impersonal by construction: it identifies the template, not the recipient. The server hashes it with the agency and normalised title into a form_signature, and that signature is the only thing that may be stored."
+    },
+    "form_title_he": {
+      "type": ["string", "null"],
+      "maxLength": 120,
+      "description": "The letter's own heading in Hebrew, verbatim. Second input to the signature, for letters that carry no code."
+    },
+    "personalised": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the letter is individual correspondence — a caseworker writing about one person's specific situation — rather than a standard template. A personalised letter is never promoted to the shared catalogue, whatever its signature."
     },
     "confidence": {
       "type": "number",

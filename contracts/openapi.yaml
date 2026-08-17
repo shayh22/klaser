@@ -199,21 +199,46 @@ components:
     Quota:
       type: object
       required: [limit, remaining, resets_at]
+      description: |
+        Denominated in **credits**, not documents. A request answered from the shared
+        checklist catalogue costs no credit — it never reached the reading model, so
+        it never cost anything worth metering. Only a full read is charged.
       properties:
         limit:
           type: integer
-          description: Documents per period. 10/month at launch — see docs/CLOUD-AI-PLAN.md.
+          description: Credits per period. See docs/CLOUD-AI-PLAN.md for the launch figure.
         remaining: { type: integer }
         resets_at: { type: string, format: date-time }
 
     AnalysisMeta:
       type: object
-      required: [model, latency_ms, quota]
+      required: [source, credits_charged, model, latency_ms, quota]
       description: |
         Everything here is about the request, never about its content. This is the
         same shape workstream G logs, which is how "no document content in logs"
         stays true by construction rather than by review.
       properties:
+        source:
+          type: string
+          enum: [template, catalogue, model]
+          description: |
+            Which layer answered.
+            `template` — a process already in the app's own TEMPLATES.
+            `catalogue` — a shared checklist recognised from the form signature.
+            `model` — no match, so the letter was read in full.
+            The client tells the user which, because "we already knew this form" is
+            worth seeing: it is the moment the product visibly gets smarter.
+        credits_charged:
+          type: integer
+          enum: [0, 1]
+          description: 0 for template and catalogue hits, 1 for a full read.
+        form_signature:
+          type: [string, 'null']
+          description: |
+            Hash of agency + form_code + normalised title. Impersonal by
+            construction — it identifies the template, not the recipient. Returned so
+            the client can recognise the same letter offline next time without any
+            request at all.
         model:
           type: string
           description: Which model actually answered, after the pre-check and any escalation.

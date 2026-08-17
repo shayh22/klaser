@@ -1,6 +1,6 @@
 # Klaser — cloud and AI migration plan
 
-**v1 · 17 August 2026 · Hebrew only at launch**
+**v2 · 17 August 2026 · Hebrew only at launch**
 
 Adding two things to Klaser:
 
@@ -43,10 +43,18 @@ downloaded field map to the local profile and renders the filled form itself.
 ## 2. Architecture
 
 ```
-Device (קלסר, core unchanged)          Edge worker (stateless)      Model
-─────────────────────────────          ───────────────────────      ─────
-letter photo ──── opt-in, 1 doc ────▶  POST /v1/analyze  ─────────▶ Sonnet 5 (ZDR)
-cases/scans  ◀─── proposed items ────  (stores no bytes)  ◀────────  keys + deadline
+Device (קלסר, core unchanged)      Edge worker (stateless)            Model
+─────────────────────────────      ───────────────────────            ─────
+letter photo ─ opt-in, 1 doc ─▶ POST /v1/analyze
+                                      │
+                                      ├─ identify ─────────────────▶ Haiku 4.5
+                                      │   form_code + agency ◀──────
+                                      │
+                                      ├─ signature hit? ─▶ catalogue ─┐  0 credits
+                                      │                               │
+                                      └─ miss ─ full read ─────────▶ Sonnet 5 (ZDR)
+                                                                      │  1 credit
+cases/scans ◀── proposed items ──────────────────────────────────────┘
 
 local profile ─┐
 downloaded     ├──▶ fill engine ──▶ filled form, printed on device
@@ -78,14 +86,60 @@ model only ever worked in Hebrew. Phase 4 is about accepting letters in other
 languages, not translating the answer. It also makes hallucinated document names
 structurally impossible on the main path, and makes the feature exactly evaluable.
 
+### Three layers answer a letter, and only one of them costs money
+
+The hand-authored `TEMPLATES` list covers twelve common processes. Real use will not
+stay inside it — people photograph municipal letters, a specific department's form, a
+one-off request from a caseworker. Those need a checklist built on the fly, and that
+is the expensive path. So the service answers in layers:
+
+| Layer | Source | Cost | Charged |
+|---|---|---:|---|
+| **0 · Template** | `TEMPLATES` in the app — already offline, already translated | 0 | no |
+| **1 · Catalogue** | A shared checklist recognised from the letter's form signature | one identify pass | no |
+| **2 · Read** | No match — the letter is read in full and a checklist built from it | identify + full read | **1 credit** |
+
+Layer 1 is the new idea and the important one. A standard letter is standard: when
+two hundred people photograph the same ארנונה discount letter from עיריית חיפה, the
+checklist is the same two hundred times. The first person's read produces it; everyone
+after is served a static answer.
+
+**Recognition has to be cheap or the layer is pointless.** The client cannot match a
+photograph to a template on its own — reading the page is the whole problem. So the
+Haiku pre-check does double duty: instead of only answering "is this an agency
+letter", it also returns the `form_code` printed on the page (Israeli correspondence
+almost always carries one — `בל/250`, `טופס 101`), the agency, and the Hebrew
+heading. The server hashes those into a **form signature** and looks it up. Hit →
+serve the stored checklist. Miss → pay for the full read.
+
+**What may be stored, and what may not.** The signature is impersonal by
+construction: it identifies the template, not the recipient. Stored against it is a
+list of catalogue document keys — nothing else. No image, no name, no reference
+number, no dates, no extracted text. A letter the model marks `personalised` — a
+caseworker writing about one person's situation — is never promoted regardless of
+its signature. Promotion also requires agreement across several independent
+sightings plus human review, because one bad extraction promoted unchecked is a wrong
+checklist served to everybody who gets that letter.
+
+**This is a flywheel, and it is the product's real asset.** The catalogue grows out
+of use rather than authoring: the twelve hand-written processes become hundreds of
+recognised letters, the marginal cost per user falls as the userbase grows, and the
+data has no value to anyone who has not already accumulated it. It is worth more than
+the code.
+
 ## 3. Model choice
+
+> **Decided.** Sonnet 5 for the layer-2 read, Haiku 4.5 for the identify pass, Opus 5
+> for offline form-map building. Revisit only on a stated trigger — see the end of
+> this section. The `analyze()` adapter stays as an eval affordance, not an open
+> question.
 
 > **See `docs/MODEL-OPTIONS.md`** for the cross-provider comparison — Gemini, GPT,
 > Mistral OCR, and open weights (Qwen3-VL, DictaLM 3.0). Summary: at launch volume
 > the entire spread between the cheapest and dearest option is about **$110/month**,
-> so cost should not decide this. The provider is now a config value behind one
-> `analyze()` adapter, and workstream F picks the winner from the Hebrew gold set.
-> Sonnet 5 remains the default to build against.
+> so cost did not decide this. The provider stays a config value behind one
+> `analyze()` adapter so F can measure alternatives, but the decision above is made
+> and the default ships.
 
 Requirements: strong Hebrew, vision good enough for a creased phone photo, native
 PDF input, structured outputs, prompt caching, zero data retention.
@@ -110,6 +164,34 @@ pricing.
 **This is a single API call, not an agent.** One request, one image, one structured
 response. No loop, no tools. The only agentic shape justified anywhere here is the
 offline form-map builder, and that is better run as a batch.
+
+### Closing the model question
+
+Decided, so that eight workstreams can start against something concrete:
+
+| Job | Model |
+|---|---|
+| Identify pass — is this a letter, and which form is it? | `claude-haiku-4-5` |
+| Layer-2 read | `claude-sonnet-5` |
+| Escalation on low confidence | `claude-opus-5` |
+| Offline form-map building (workstream C, batched) | `claude-opus-5`, or a dedicated OCR if C's evaluation prefers it |
+
+Chosen on retention route and on Hebrew being the risk rather than the price — not
+because Sonnet 5 is proven best at Hebrew agency letters, since nothing is. The
+adapter interface stays so F can measure alternatives, but **the default ships**
+rather than waiting for the bake-off.
+
+**Reopen only when one of these fires:**
+
+1. Layer-2 volume passes **25,000/month** — the point where the provider spread stops
+   being noise and becomes ~$500/month.
+2. F's bake-off shows another model within **2 points of required-document recall** at
+   **≥50% lower cost**.
+3. The ZDR route for the chosen provider changes, or Sonnet 5 gains a retention
+   restriction.
+
+Absent one of those, the model is not a topic. Cost work goes into the catalogue hit
+rate instead, which is worth far more (§4).
 
 ## 4. Cost
 
@@ -152,6 +234,30 @@ Two further levers: the **Batches API** halves the price of anything
 non-interactive, which covers the whole form-map catalogue build; and the Haiku
 pre-check kills selfies, blurry frames and receipts before they reach Sonnet.
 
+### The catalogue hit rate is the only lever that matters
+
+Once the identify pass exists, cost per document is
+`$0.00827 + (1 − hit_rate) × $0.02481`:
+
+| Catalogue hit rate | $/1,000 docs | vs reading every letter |
+|---:|---:|---:|
+| 0% | $33.08 | **+33%** |
+| 20% | $28.12 | +13% |
+| **33.3%** | **$24.82** | **break-even** |
+| 50% | $20.67 | −17% |
+| 70% | $15.71 | −37% |
+| 85% | $11.99 | −52% |
+
+**Below a 33.3% hit rate the identify pass costs more than it saves.** That is a
+launch decision, not a footnote: ship layer 2 alone, measure the signature-collision
+rate in shadow mode, and switch the catalogue on once it clears ~35%. Israeli
+bureaucracy is concentrated enough — a handful of agencies sending standard form
+letters — that 50–70% is plausible, but plausible is not measured.
+
+This dwarfs every other lever in this document. Resolution is worth 22%; caching the
+catalogue 12%; a mature checklist catalogue, 52%. And unlike the others it improves
+on its own as the product is used.
+
 ## 5. Stack
 
 | Piece | Choice | Reasoning |
@@ -162,12 +268,43 @@ pre-check kills selfies, blurry frames and receipts before they reach Sonnet.
 | Form-map catalogue | Static JSON, versioned in the repo | Public data, cacheable at the edge indefinitely, works offline once fetched |
 | Model access | Anthropic first-party API, ZDR | Batches and prompt caching are first-party. ZDR agreed before any real document is sent |
 | Abuse control | Anonymous device token + Turnstile on issue | No account, no email, no identity — keeps the free tier free of a sign-up wall |
+| Checklist catalogue | D1, signature → document keys | Impersonal rows only. Promoted after agreement across sightings plus review |
+
+## 6. Pricing
+
+The layers give the pricing model for free, because they line up exactly with what
+costs money.
+
+**One credit = one letter that had to be read.** Templates and catalogue hits are
+unmetered — they never reached the reading model, so there is nothing worth counting.
+The client says which happened, and "we already knew this form, that one was free" is
+a good thing for a user to see.
+
+| Tier | Credits | Cost to run, at 70% hit rate | Note |
+|---|---|---:|---|
+| **Free** | 10/month | ₪7/user/year at full use | Most users will not use ten. Realistically ₪1–3 |
+| **Personal** | 100/year, ₪39 one-off | ₪12/user | One-off, not a subscription — the product succeeds by becoming unnecessary, so renting it monthly is a bad fit and users know it |
+| **Organisation** | Pooled, from 2,000/year | ₪230 per 2,000 | ₪15–30k/org/year as previously modelled; inference is ~1% of that |
+
+Layer 0 and layer 1 stay free at any volume, including for users who never pay. That
+is deliberate: a generous free tier is what feeds the catalogue, and the catalogue is
+what makes the paid tiers cheap to serve. Metering the layer that costs nothing would
+starve the only asset the product accumulates.
+
+Two rules that keep this honest:
+
+- **A failed read does not spend a credit.** Low confidence, unreadable photo,
+  `not_a_letter` — the user gets nothing useful, so they pay nothing. The cost is
+  absorbed; workstream G watches the rate, because a high one means the client is
+  letting through images it should have rejected on device.
+- **Credits never expire mid-process.** Someone in the middle of a תיק who runs out
+  is exactly the person the product exists for.
 
 ---
 
 ## Phase 0 — blocking, one agent, no parallelism
 
-Seven agents writing against an unwritten contract produce seven incompatible
+Eight agents writing against an unwritten contract produce eight incompatible
 guesses. Phase 0 exists so every later workstream codes against a file it can read.
 
 | | Deliverable | State |
@@ -194,7 +331,7 @@ rather than "a health fund".
 **Phase 0 closes when** a stub server generated from the OpenAPI file answers a
 contract test in CI, and `--check` runs on every push.
 
-## Phase 1 — seven parallel workstreams
+## Phase 1 — eight parallel workstreams
 
 Lettered, not numbered: they run in parallel and the ordering carries no meaning.
 
@@ -285,6 +422,25 @@ Lettered, not numbered: they run in parallel and the ordering carries no meaning
 - **Rollout gate** — recall ≥ 0.90, false-add ≤ 0.05, agency ≥ 0.95, deadline exact
   ≥ 0.90. Below any of these the feature does not ship; it is a checklist people act on.
 - **Must not touch** — prompts. The team that writes the prompt does not own the scoreboard.
+
+### H · Checklist catalogue and promotion
+
+- **Goal** — the layer-1 store: form signature → document keys, the promotion
+  pipeline that decides when an on-the-fly checklist becomes a shared one, and the
+  review queue that gates it.
+- **Owns** — the signature function, the D1 catalogue table, the promotion rules, the
+  review tool.
+- **Promotion rules** — never on one sighting. Requires agreement across N
+  independent devices, `personalised: false`, confidence above threshold on every
+  contributing read, and a human pass before it serves anyone. One bad extraction
+  promoted unchecked is a wrong checklist handed to everybody who gets that letter.
+- **Hard rule** — **rows contain a signature hash and document keys. Nothing else.**
+  No image, no name, no reference number, no dates, no extracted text, no device
+  identifier. A schema that cannot hold personal data cannot leak it.
+- **Done when** — shadow mode reports a measured signature hit rate and a
+  false-collision rate (two genuinely different letters sharing a signature) near
+  zero. The go/no-go for switching layer 1 on is a hit rate above ~35% (§4).
+- **Must not touch** — the analyze path itself (B owns it), the client.
 
 ### G · Cost, observability, kill switch — before any public traffic
 
