@@ -475,7 +475,7 @@
 </div>
 
 <input type="file" id="scanInput" accept="image/*,application/pdf" multiple capture="environment" class="sr">
-<input type="file" id="letterInput" accept="image/*,application/pdf" capture="environment" class="sr">
+<input type="file" id="letterInput" accept="image/*,application/pdf" class="sr">
 
 <div id="printArea" dir="rtl" lang="he"></div>
 
@@ -786,10 +786,10 @@ const STR = {
     ru:'У нас пока нет карты полей для этой формы. Данные ниже готовы к переносу в оригинал.'},
   fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'},
   demoBanner:{
-    he:'\u{1F9EA} מצב הדגמה — התשובה קבועה מראש ואינה קריאה אמיתית של המכתב. שום דבר לא נשלח לשום מקום.',
-    fr:"\u{1F9EA} Mode démo — la réponse est prédéfinie, ce n'est pas une vraie lecture du courrier. Rien n'est envoyé nulle part.",
-    en:'\u{1F9EA} Demo mode — the answer is canned, not a real reading of the letter. Nothing is sent anywhere.',
-    ru:'\u{1F9EA} Демо-режим — ответ заготовлен заранее, это не настоящее чтение письма. Ничего никуда не отправляется.'}
+    he:'\u{1F9EA} מצב הדגמה — התשובה קבועה מראש על מכתב לדוגמה, ואינה קריאה אמיתית. אין צורך לצלם, ושום דבר לא נשלח לשום מקום.',
+    fr:"\u{1F9EA} Mode démo — réponse prédéfinie sur un courrier d'exemple, pas une vraie lecture. Aucune photo nécessaire, rien n'est envoyé.",
+    en:'\u{1F9EA} Demo mode — a canned answer about a sample letter, not a real reading. No photo needed, and nothing is sent anywhere.',
+    ru:'\u{1F9EA} Демо-режим — заготовленный ответ по образцу письма, не настоящее чтение. Фото не нужно, ничего никуда не отправляется.'}
 };
 
 /* Stages a case moves through. */
@@ -1451,7 +1451,7 @@ $('#glossSearch').addEventListener('input', renderGlossary);
 /* Delegated handling for everything inside a case card. */
 $('#caseList').addEventListener('click', e => {
   if(e.target.closest('#emptyNew')){ openModal(null); return; }
-  if(e.target.closest('#emptyScan')){ letterTarget = null; $('#letterInput').click(); return; }
+  if(e.target.closest('#emptyScan')){ startLetterScan(null); return; }
   if(e.target.closest('#clearFilter')){ filter='all'; render(); return; }
   const q = e.target.closest('[data-act="quick"]');
   if(q){ addFromTemplate(q.dataset.tpl); return; }
@@ -1491,7 +1491,7 @@ $('#caseList').addEventListener('click', e => {
   if(act === 'fill'){ openFill(c.id); return; }
   if(act === 'attachletter'){
     if(!AI.cfg.enabled){ alert(t('aiUnavailable')); return; }
-    letterTarget = c.id; $('#letterInput').click(); return;
+    startLetterScan(c.id); return;
   }
   if(act === 'edit'){ openModal(c.id); return; }
   if(act === 'del'){
@@ -2011,7 +2011,11 @@ async function runLetterScan(file, targetCaseId){
 
   aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('aiWorking'))}</p>`, []);
   try{
-    const blob = await compress(file);
+    /* Demo mode answers from a fixture, so it does not need — and must not
+       require — a photograph. Inside a cross-origin iframe a phone camera is
+       unreachable without an explicit permission grant, and gating the demo on a
+       file that never arrives leaves the button doing nothing at all. */
+    const blob = (AI.demo && !file) ? null : await compress(file);
     const hint = (()=> {
       const c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
       return c ? {agency:c.agency||null, template:c.template||null} : null;
@@ -2032,7 +2036,12 @@ $('#letterInput').addEventListener('change', e => {
   if(f) runLetterScan(f, letterTarget);
   letterTarget = null;
 });
-$('#scanLetter').addEventListener('click', () => { letterTarget = null; $('#letterInput').click(); });
+function startLetterScan(caseId){
+  letterTarget = caseId || null;
+  if(AI.demo){ runLetterScan(null, letterTarget); letterTarget = null; return; }
+  $('#letterInput').click();
+}
+$('#scanLetter').addEventListener('click', () => startLetterScan(null));
 $('#aiModal').addEventListener('click', e => { if(e.target.id === 'aiModal') aiClose(); });
 
 
