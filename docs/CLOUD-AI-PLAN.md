@@ -80,6 +80,13 @@ structurally impossible on the main path, and makes the feature exactly evaluabl
 
 ## 3. Model choice
 
+> **See `docs/MODEL-OPTIONS.md`** for the cross-provider comparison — Gemini, GPT,
+> Mistral OCR, and open weights (Qwen3-VL, DictaLM 3.0). Summary: at launch volume
+> the entire spread between the cheapest and dearest option is about **$110/month**,
+> so cost should not decide this. The provider is now a config value behind one
+> `analyze()` adapter, and workstream F picks the winner from the Hebrew gold set.
+> Sonnet 5 remains the default to build against.
+
 Requirements: strong Hebrew, vision good enough for a creased phone photo, native
 PDF input, structured outputs, prompt caching, zero data retention.
 
@@ -203,10 +210,14 @@ Lettered, not numbered: they run in parallel and the ordering carries no meaning
 
 ### B · Letter → checklist
 
-- **Goal** — implement `/v1/analyze`: Haiku pre-check, Sonnet 5 call with the cached
-  catalogue block, structured output, confidence thresholding, Opus escalation path.
+- **Goal** — implement `/v1/analyze`: cheap pre-check, main call with the cached
+  catalogue block, structured output, confidence thresholding, escalation path.
+- **Implements an interface, not a vendor** — `analyze(image, catalogue, opts) ->
+  AnalysisResult`, with one adapter per candidate provider behind it. Sonnet 5 is the
+  default adapter; Gemini, GPT and a self-hosted Qwen3-VL adapter exist so F can
+  score them on the same gold set without B rewriting anything.
 - **Owns** — `server/analyze/`: the Hebrew system prompt, catalogue assembly,
-  `cache_control` placement, retry and timeout policy.
+  cache placement, retry and timeout policy, the adapters.
 - **Reads** — `contracts/`, generated `catalogue.json`.
 - **Done when** — workstream F's gold set clears the rollout thresholds. Not before:
   a passing unit test says nothing about whether the checklist is right.
@@ -219,6 +230,11 @@ Lettered, not numbered: they run in parallel and the ordering carries no meaning
   answers it, page coordinates to print into.
 - **Owns** — `tools/build-formmap.mjs` (Opus 5 via the Batches API),
   `catalogue/forms/*.json`.
+- **Evaluate a dedicated OCR first.** Mistral OCR and Google Cloud Vision return
+  bounding boxes and block types, which is precisely the page geometry this
+  workstream otherwise asks a model to infer from an image. Cheaper and more exact
+  for the coordinates; the model then only has to decide what each labelled box
+  *means*. See `docs/MODEL-OPTIONS.md`.
 - **Done when** — the first ten forms are mapped, each validated by filling it from a
   synthetic profile and having a Hebrew reader confirm every field landed in the
   right box.
@@ -261,6 +277,11 @@ Lettered, not numbered: they run in parallel and the ordering carries no meaning
   accuracy against cost. Image tokens are the largest single cost term (§4), so the
   cheapest resolution that holds the thresholds is worth more than any prompt
   tuning. Deliverable is a number, not an opinion.
+- **Model bake-off** — run every adapter B implements over the same gold set:
+  Sonnet 5, Haiku 4.5, Gemini 3 Flash / Flash-Lite, GPT-5 mini, and a split
+  OCR→text pipeline. **F owns this decision.** No published benchmark measures
+  Hebrew agency-letter understanding, so the gold set is the only evidence that
+  will exist — see `docs/MODEL-OPTIONS.md`.
 - **Rollout gate** — recall ≥ 0.90, false-add ≤ 0.05, agency ≥ 0.95, deadline exact
   ≥ 0.90. Below any of these the feature does not ship; it is a checklist people act on.
 - **Must not touch** — prompts. The team that writes the prompt does not own the scoreboard.
