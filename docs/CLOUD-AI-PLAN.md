@@ -2,6 +2,12 @@
 
 **v2 · 17 August 2026 · Hebrew only at launch**
 
+> **Sequencing lives in `ROADMAP.md`**, which supersedes the phase numbering below.
+> This document keeps the architecture; that one keeps the order. The short version:
+> official document lists from the authorities move template expansion to P0, ahead
+> of everything requiring a server, and demote the derived catalogue (workstream H)
+> to P3.
+
 Adding two things to Klaser:
 
 1. **Read an incoming letter** — photograph a letter from an agency, get back which

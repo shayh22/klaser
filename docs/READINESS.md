@@ -6,12 +6,18 @@
 
 The thinking is done and the contracts exist. What is missing is not design — it is
 two CI tasks, a signed agreement, and **forty real Hebrew letters that only you can
-obtain**. That last one is the critical path, it has a long lead time, and no amount
-of engineering shortens it.
+obtain**. That last one is the critical path *for the AI service*, it has a long lead
+time, and no amount of engineering shortens it.
 
 Nothing here argues for delay. It argues for starting the letter collection today, in
 parallel with everything else, because every other lane can be built while it happens
 and none of them can ship before it lands.
+
+> **Update — this is no longer the whole picture.** Official document lists from the
+> authorities put a large slice of the value outside the AI service entirely:
+> expanding `TEMPLATES` needs no server, no model, no ZDR and no eval set. See
+> `ROADMAP.md`. Read the verdict above as applying to P1 and beyond; **P0 is ready to
+> build today.**
 
 ## Where each piece stands
 
@@ -95,15 +101,17 @@ wording does not account for.
 rollout thresholds, updated wording. Residual risk stays above zero — this is the
 feature's inherent hazard, not a bug to close.
 
-### R3 · The catalogue makes economics worse before better — **medium**
+### R3 · The catalogue makes economics worse before better — ~~medium~~ **largely closed**
 
 Hit rate is 0% on launch day, where the two-tier design costs **33% more** than simply
 reading every letter. It only improves with volume, which is what a new product does
 not have. Left alone, a flywheel that never starts turning.
 
-*Mitigation:* ship layer 2 alone, switch layer 1 on above a measured 35% — already the
-plan. Better: seed the catalogue by hand with the twenty most common letters before
-launch, so day one starts non-zero. Turns a cold-start problem into a content task.
+*Closed by:* official document lists from the authorities. Hand-authored templates do
+the same job better for every common process, from a better source, with no privacy
+surface — so the catalogue starts full rather than empty. See `ROADMAP.md` Phase 1.
+The derived catalogue (workstream H) drops to P3 and is only worth building for the
+long tail. Residual risk is confined to that tail.
 
 ### R4 · Signatures break in batches when an agency redesigns — **medium**
 
