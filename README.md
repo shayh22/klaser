@@ -66,7 +66,15 @@ browser, and the two are joined on your device. Your ת״ז is check-digit valid
 before it is printed and never leaves the machine — there is no endpoint that could
 accept it. A test asserts that too, at the network level rather than by inspection.
 
-To switch it on, set an endpoint before the app loads:
+**Trying it without any of that.** `?demo=1` runs the whole flow against a canned
+answer, in the browser, with no server and no network call at all — so the
+interaction can be tried on a real phone before a line of the cloud half is
+deployed. Every screen says it is a demo, because a canned answer that looked like a
+real one would be the most misleading thing this app could do.
+
+`node tools/build-demo.mjs out.html` packages that as one self-contained file.
+
+To switch on the real thing, set an endpoint before the app loads:
 
 ```html
 <script>window.KLASER_AI_ENDPOINT = 'https://api.example.com';</script>
@@ -83,7 +91,7 @@ The optional service lives in `server/` and runs on Cloudflare Workers:
 ```bash
 node server/dev.js          # mock provider — the whole flow works with no API key
 ANTHROPIC_API_KEY=sk-… node server/dev.js
-node tests/run.mjs          # 310 assertions, browser and server
+node tests/run.mjs          # 329 assertions, browser and server
 ```
 
 The mock provider is not a stub: it returns realistic Hebrew fixtures in the real

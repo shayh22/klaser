@@ -784,7 +784,12 @@ const STR = {
     fr:"Nous n'avons pas encore la cartographie de ce formulaire. Les données ci-dessous sont prêtes à recopier.",
     en:'We do not have a field map for this form yet. The details below are ready to copy onto the original.',
     ru:'У нас пока нет карты полей для этой формы. Данные ниже готовы к переносу в оригинал.'},
-  fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'}
+  fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'},
+  demoBanner:{
+    he:'\u{1F9EA} מצב הדגמה — התשובה קבועה מראש ואינה קריאה אמיתית של המכתב. שום דבר לא נשלח לשום מקום.',
+    fr:"\u{1F9EA} Mode démo — la réponse est prédéfinie, ce n'est pas une vraie lecture du courrier. Rien n'est envoyé nulle part.",
+    en:'\u{1F9EA} Demo mode — the answer is canned, not a real reading of the letter. Nothing is sent anywhere.',
+    ru:'\u{1F9EA} Демо-режим — ответ заготовлен заранее, это не настоящее чтение письма. Ничего никуда не отправляется.'}
 };
 
 /* Stages a case moves through. */
@@ -1738,6 +1743,8 @@ const AI = {
   quota: null,
   health: null,
 
+  demo: false,
+
   load(){
     try{
       const raw = localStorage.getItem('klaser.ai');
@@ -1746,8 +1753,44 @@ const AI = {
     /* A build can ship an endpoint by setting window.KLASER_AI_ENDPOINT. Without
        one, the feature does not exist as far as the interface is concerned. */
     if(!this.cfg.endpoint && window.KLASER_AI_ENDPOINT) this.cfg.endpoint = window.KLASER_AI_ENDPOINT;
+
+    /* Demo mode: ?demo=1 runs the whole flow against a canned answer, in the
+       browser, with no server and no network call of any kind. It exists so the
+       interaction can be tried on a real phone before any of the cloud half is
+       deployed. It is labelled on every screen, because a canned answer that
+       looked like a real one would be the single most misleading thing this app
+       could do. */
+    const qs = new URLSearchParams(location.search);
+    if(qs.get('demo') === '1' || this.cfg.endpoint === 'demo'){
+      this.demo = true; this.cfg.endpoint = 'demo';
+    }
     this.cfg.enabled = !!this.cfg.endpoint;
     return this.cfg.enabled;
+  },
+
+  /* Same shape the server returns, so the client code path is identical. */
+  demoResponse(){
+    return {
+      result: {
+        agency:'btl', agency_child:null, template:'child_allowance',
+        required_docs:[
+          {key:'teudat_zehut', evidence:'צילום תעודת זהות של שני ההורים', confidence:0.96},
+          {key:'sefach',       evidence:'ספח תעודת הזהות שבו רשומים הילדים', confidence:0.93},
+          {key:'bank_confirm', evidence:'אישור ניהול חשבון בנק על שם התובע', confidence:0.95},
+          {key:'claim_form',   evidence:'טופס התביעה המצורף, חתום', confidence:0.9}
+        ],
+        extra_docs:[
+          {he:'תעודת לידה של הילד שנולד בחו״ל', evidence:'עבור ילד שנולד מחוץ לישראל יש לצרף תעודת לידה מתורגמת', confidence:0.72}
+        ],
+        deadline:null, letter_date:'2026-08-02', reference:'304-882-1177',
+        form_code:'בל/5020', form_title_he:'בקשה לקצבת ילדים',
+        form_to_fill:{where:'self', form_code:'בל/5020', form_title_he:'בקשה לקצבת ילדים'},
+        personalised:false, confidence:0.91, language:'he'
+      },
+      meta:{ source:'model', credits_charged:1, form_signature:'demo',
+             model:'demo', escalated:false, latency_ms:900,
+             quota:{limit:10, remaining:9, resets_at:''} }
+    };
   },
 
   save(){ try{ localStorage.setItem('klaser.ai', JSON.stringify(this.cfg)); }catch{} },
@@ -1755,6 +1798,7 @@ const AI = {
   url(path){ return this.cfg.endpoint.replace(/\/+$/,'') + path; },
 
   async checkHealth(){
+    if(this.demo) return (this.health = {status:'ok', accepts_analysis:true, reason:null});
     if(!this.cfg.enabled) return null;
     try{
       const r = await fetch(this.url('/v1/health'), {method:'GET'});
@@ -1786,6 +1830,10 @@ const AI = {
   recordConsent(){ try{ localStorage.setItem('klaser.consent','1'); }catch{} },
 
   async analyze(blob, hint){
+    if(this.demo){
+      await new Promise(r => setTimeout(r, 900));   /* so the progress state is visible */
+      return this.demoResponse();
+    }
     const token = await this.getToken();
     const b64 = (await blobToDataURL(blob)).split(',')[1];
     const r = await fetch(this.url('/v1/analyze'), {
@@ -1818,7 +1866,9 @@ const AI = {
 /* ---------- the modal used for consent, progress and review ---------- */
 function aiSheet(title, bodyHTML, actions){
   $('#aiTitle').textContent = title;
-  $('#aiBody').innerHTML = bodyHTML;
+  $('#aiBody').innerHTML =
+    (AI.demo ? `<div class="badge problem" style="display:block;margin-bottom:9px;white-space:normal;line-height:1.45" dir="auto">${esc(t('demoBanner'))}</div>` : '')
+    + bodyHTML;
   const bar = $('#aiActions');
   bar.innerHTML = '';
   actions.forEach(a => {
