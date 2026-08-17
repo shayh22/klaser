@@ -1,0 +1,28 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+
+      # The catalogue the model sees is generated from index.html. If someone adds
+      # a document to the app and forgets to regenerate, the two drift silently —
+      # so this fails the build rather than letting it happen.
+      - name: Catalogue is in step with the app
+        run: node tools/extract-catalogue.mjs --check
+
+      - name: Contracts parse
+        run: |
+          node -e "for (const f of ['contracts/catalogue.json','contracts/analysis.schema.json','contracts/formmap.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+          npx --yes js-yaml contracts/openapi.yaml > /dev/null
+
+      - name: Install browser
+        run: npx --yes playwright@latest install --with-deps chromium
+
+      - name: Test
+        run: node tests/run.mjs

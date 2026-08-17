@@ -388,6 +388,26 @@
   /* file inputs are opened by their own buttons; keeping them focusable adds a
      mystery tab stop with no accessible name */
   input[type=file].sr{display:none}
+
+/* --- form fill --- */
+.field{display:grid;grid-template-columns:1fr;gap:3px;margin-bottom:9px}
+.field>span:first-child{font-size:12px;color:var(--ink-soft)}
+.field input{width:100%;min-height:44px;padding:9px 11px;font:inherit;
+  border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.field input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* --- printable sheet: hidden on screen, the only thing shown on paper --- */
+#printArea{display:none}
+@media print{
+  body>*{display:none !important}
+  body.printing #printArea{display:block !important;padding:0;color:#000;background:#fff}
+  #printArea h1{font-size:20pt;margin:0 0 4pt}
+  #printArea .sub{font-size:10pt;color:#444;margin:0 0 14pt}
+  #printArea table{width:100%;border-collapse:collapse;font-size:11pt}
+  #printArea th{text-align:start;width:38%;padding:5pt 6pt;border-bottom:1px solid #bbb;font-weight:600;vertical-align:top}
+  #printArea td{padding:5pt 6pt;border-bottom:1px solid #bbb}
+  #printArea .foot{margin-top:16pt;font-size:8pt;color:#555}
+}
 </style>
 </head>
 <body>
@@ -418,6 +438,7 @@
     <div class="stats" id="stats"></div>
     <div class="toolbar" id="toolbar">
       <button class="btn primary" id="newCase" data-t="newCase"></button>
+      <button class="btn" id="scanLetter" data-t="scanLetter" hidden></button>
     </div>
     <div class="filters" id="filters"></div>
     <div id="caseList"></div>
@@ -454,6 +475,29 @@
 </div>
 
 <input type="file" id="scanInput" accept="image/*,application/pdf" multiple capture="environment" class="sr">
+<input type="file" id="letterInput" accept="image/*,application/pdf" capture="environment" class="sr">
+
+<div id="printArea" dir="rtl" lang="he"></div>
+
+<div class="modal" id="aiModal" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+  <div class="sheet">
+    <h2 id="aiTitle"></h2>
+    <div id="aiBody"></div>
+    <div class="actions" id="aiActions"></div>
+  </div>
+</div>
+
+<div class="modal" id="fillModal" role="dialog" aria-modal="true" aria-labelledby="fillTitleH">
+  <div class="sheet">
+    <h2 id="fillTitleH"></h2>
+    <div id="fillBody"></div>
+    <div class="actions">
+      <button class="btn primary" id="fillPrintBtn" data-t="fillPrint"></button>
+      <button class="btn" id="fillSaveBtn" data-t="fillSaveProfile"></button>
+      <button class="btn" id="fillCloseBtn" data-t="scanClose"></button>
+    </div>
+  </div>
+</div>
 
 <!-- ============ SCAN VIEWER ============ -->
 <div class="modal" id="scanModal" role="dialog" aria-modal="true">
@@ -681,7 +725,66 @@ const STR = {
     ru:'Данные и сканы хранятся только в этом браузере на этом устройстве. Ничего не отправляется на сервер. Очистка истории удалит всё — делайте резервные копии.'
   },
   importBad:{he:'הקובץ לא תקין.',fr:'Fichier invalide.',en:'Invalid file.',ru:'Неверный файл.'},
-  importOk:{he:'השחזור הושלם.',fr:'Restauration terminée.',en:'Restore complete.',ru:'Восстановление завершено.'}
+  importOk:{he:'השחזור הושלם.',fr:'Restauration terminée.',en:'Restore complete.',ru:'Восстановление завершено.'},
+
+  /* --- Reading a letter (optional cloud feature, off unless configured) --- */
+  scanLetter:{he:'\u{1F4F7} סריקת מכתב',fr:'\u{1F4F7} Scanner un courrier',en:'\u{1F4F7} Scan a letter',ru:'\u{1F4F7} Сканировать письмо'},
+  scanLetterHint:{
+    he:'צלמו מכתב שקיבלתם מרשות — ונבנה ממנו רשימת מסמכים.',
+    fr:"Photographiez un courrier reçu d'une administration — nous en tirerons la liste des documents.",
+    en:'Photograph a letter you received from an agency, and we build the document list from it.',
+    ru:'Сфотографируйте письмо из ведомства — мы составим по нему список документов.'},
+  aiConsentTitle:{he:'שליחת המסמך לניתוח',fr:'Envoyer le document pour analyse',en:'Send this document for analysis',ru:'Отправить документ на анализ'},
+  aiConsentBody:{
+    he:'כדי לקרוא את המכתב, התמונה הזאת בלבד נשלחת לשירות הניתוח. היא לא נשמרת בשום מקום — לא אצלנו ולא אצל ספק המודל. שאר התיקים, הסריקות והפרטים האישיים שלכם נשארים במכשיר ולא נשלחים.\n\nאם תבחרו לא — הקלסר ממשיך לעבוד בדיוק כרגיל.',
+    fr:"Pour lire ce courrier, cette image seule est envoyée au service d'analyse. Elle n'est conservée nulle part, ni chez nous ni chez le fournisseur du modèle. Vos autres dossiers, scans et données personnelles restent sur l'appareil.\n\nSi vous refusez, Klaser continue de fonctionner exactement comme avant.",
+    en:'To read this letter, this image alone is sent to the analysis service. It is not stored anywhere — not by us, not by the model provider. Your other cases, scans and personal details stay on the device.\n\nIf you decline, Klaser keeps working exactly as it does now.',
+    ru:'Чтобы прочитать письмо, отправляется только это изображение. Оно нигде не сохраняется — ни у нас, ни у поставщика модели. Остальные дела, сканы и личные данные остаются на устройстве.\n\nЕсли откажетесь, Klaser продолжит работать как прежде.'},
+  aiAccept:{he:'שלח מסמך זה',fr:'Envoyer ce document',en:'Send this document',ru:'Отправить этот документ'},
+  aiDecline:{he:'לא, תודה',fr:'Non merci',en:'No thanks',ru:'Нет, спасибо'},
+  aiWorking:{he:'קורא את המכתב…',fr:'Lecture du courrier…',en:'Reading the letter…',ru:'Читаю письмо…'},
+  aiNotLetter:{
+    he:'לא הצלחנו לזהות כאן מכתב מרשות. נסו לצלם שוב באור טוב, כשכל הדף בתוך המסגרת. לא חויבתם.',
+    fr:"Nous n'avons pas reconnu de courrier administratif. Réessayez en pleine lumière, page entière dans le cadre. Rien ne vous a été décompté.",
+    en:'We could not recognise an agency letter here. Try again in good light with the whole page in frame. Nothing was charged.',
+    ru:'Не удалось распознать письмо из ведомства. Попробуйте при хорошем освещении, вся страница в кадре. Списание не произошло.'},
+  aiUnavailable:{
+    he:'הניתוח האוטומטי לא זמין כרגע. אפשר להמשיך ידנית — הקלסר עובד רגיל.',
+    fr:"L'analyse automatique est indisponible. Continuez manuellement — Klaser fonctionne normalement.",
+    en:'Automatic analysis is unavailable right now. Carry on manually — Klaser works as normal.',
+    ru:'Автоматический анализ сейчас недоступен. Продолжайте вручную — Klaser работает как обычно.'},
+  reviewTitle:{he:'מה מצאנו במכתב',fr:'Ce que nous avons trouvé',en:'What we found in the letter',ru:'Что мы нашли в письме'},
+  reviewBody:{
+    he:'בדקו לפני ההוספה. לכל פריט מצורף המשפט מהמכתב שממנו הוא נלקח. הסירו סימון מכל דבר שלא נכון.',
+    fr:"Vérifiez avant d'ajouter. Chaque élément indique la phrase du courrier dont il provient. Décochez ce qui est faux.",
+    en:'Check before adding. Each item shows the sentence in the letter it came from. Untick anything that is wrong.',
+    ru:'Проверьте перед добавлением. У каждого пункта указана фраза из письма. Снимите отметку с неверного.'},
+  reviewUnverified:{he:'לא מזוהה — בדקו מול הרשות',fr:'Non reconnu — vérifiez',en:'Unrecognised — verify with the agency',ru:'Не распознано — уточните'},
+  reviewAdd:{he:'הוסף לתיק',fr:'Ajouter au dossier',en:'Add to case',ru:'Добавить в дело'},
+  reviewNothing:{he:'לא נמצאו מסמכים לאסוף.',fr:'Aucun document à rassembler.',en:'No documents to collect were found.',ru:'Документы для сбора не найдены.'},
+  reviewUndo:{he:'בטל את ההוספה',fr:"Annuler l'ajout",en:'Undo that',ru:'Отменить добавление'},
+  reviewAdded:{he:'נוסף לתיק.',fr:'Ajouté au dossier.',en:'Added to the case.',ru:'Добавлено в дело.'},
+  creditsLeft:{he:'נותרו {n} ניתוחים החודש',fr:'{n} analyses restantes ce mois',en:'{n} analyses left this month',ru:'Осталось анализов в этом месяце: {n}'},
+  freeHit:{he:'הטופס הזה כבר מוכר — לא נוצל ניתוח.',fr:'Ce formulaire est déjà connu — aucune analyse consommée.',en:'We already knew this form — no analysis used.',ru:'Эта форма уже известна — анализ не потрачен.'},
+
+  /* --- Filling the form (entirely on-device) --- */
+  fillForm:{he:'\u{1F58A} מילוי הטופס',fr:'\u{1F58A} Remplir le formulaire',en:'\u{1F58A} Fill the form',ru:'\u{1F58A} Заполнить форму'},
+  fillReady:{he:'כל המסמכים נאספו — אפשר למלא את הטופס.',fr:'Tous les documents sont réunis — vous pouvez remplir le formulaire.',en:'All documents collected — you can fill the form.',ru:'Все документы собраны — можно заполнять форму.'},
+  fillTitle:{he:'מילוי טופס',fr:'Remplir le formulaire',en:'Fill the form',ru:'Заполнение формы'},
+  fillLocal:{
+    he:'\u{1F512} המילוי נעשה במכשיר שלכם בלבד. הפרטים האישיים כאן לא נשלחים לשום מקום.',
+    fr:'\u{1F512} Le remplissage se fait uniquement sur votre appareil. Ces données personnelles ne sont envoyées nulle part.',
+    en:'\u{1F512} Filling happens on your device only. These personal details are not sent anywhere.',
+    ru:'\u{1F512} Заполнение происходит только на вашем устройстве. Эти данные никуда не отправляются.'},
+  fillPrint:{he:'הדפסה / שמירה',fr:'Imprimer / enregistrer',en:'Print / save',ru:'Печать / сохранить'},
+  fillSaveProfile:{he:'שמור לפעם הבאה',fr:'Enregistrer pour la prochaine fois',en:'Save for next time',ru:'Сохранить на будущее'},
+  fillMissing:{he:'{n} שדות חסרים',fr:'{n} champs manquants',en:'{n} fields still empty',ru:'Не заполнено полей: {n}'},
+  fillNoMap:{
+    he:'אין לנו עדיין מפת שדות לטופס הזה. הפרטים למטה מוכנים להעתקה לטופס המקורי.',
+    fr:"Nous n'avons pas encore la cartographie de ce formulaire. Les données ci-dessous sont prêtes à recopier.",
+    en:'We do not have a field map for this form yet. The details below are ready to copy onto the original.',
+    ru:'У нас пока нет карты полей для этой формы. Данные ниже готовы к переносу в оригинал.'},
+  fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'}
 };
 
 /* Stages a case moves through. */
@@ -1058,6 +1161,8 @@ function renderCases(){
                   <span class="q-sub">${esc(nameOf(ag))}${lang!=='he'?' · '+esc(ag.he):''}</span>
                 </span></button>`; }).join('')}
           </div>
+          ${AI.cfg.enabled?`<button class="btn primary" type="button" id="emptyScan" style="width:100%;margin-top:9px">${esc(t('scanLetter'))}</button>
+          <p class="hint" style="margin:6px 0 0">${esc(t('scanLetterHint'))}</p>`:''}
           <button class="btn" type="button" id="emptyNew" style="width:100%;margin-top:9px">${esc(t('somethingElse'))}</button>
         </div></div>`;
     return;
@@ -1141,7 +1246,14 @@ function renderCases(){
           <button class="btn small" type="button" data-act="addnote">${esc(t('add'))}</button>
         </div>
 
+        ${c.form && c.docs.length && done === c.docs.length ? `
+        <div class="card" style="margin:12px 0 0;padding:11px;background:var(--moss-bg,var(--paper-2))">
+          <div style="font-size:13px;margin-bottom:8px" dir="auto">${esc(t('fillReady'))}</div>
+          <button class="btn primary" type="button" data-act="fill" style="width:100%">${esc(t('fillForm'))}</button>
+        </div>` : ''}
+
         <div class="row-add" style="margin-top:14px">
+          <button class="btn small" type="button" data-act="attachletter">${esc(t('scanLetter'))}</button>
           <button class="btn small" type="button" data-act="edit">${esc(t('edit'))}</button>
           <button class="btn small danger" type="button" data-act="del">${esc(t('del'))}</button>
         </div>
@@ -1334,6 +1446,7 @@ $('#glossSearch').addEventListener('input', renderGlossary);
 /* Delegated handling for everything inside a case card. */
 $('#caseList').addEventListener('click', e => {
   if(e.target.closest('#emptyNew')){ openModal(null); return; }
+  if(e.target.closest('#emptyScan')){ letterTarget = null; $('#letterInput').click(); return; }
   if(e.target.closest('#clearFilter')){ filter='all'; render(); return; }
   const q = e.target.closest('[data-act="quick"]');
   if(q){ addFromTemplate(q.dataset.tpl); return; }
@@ -1369,6 +1482,11 @@ $('#caseList').addEventListener('click', e => {
   }
   if(act === 'rmnote'){
     c.notes = c.notes.filter(n=>n.id !== e.target.dataset.note); save(); renderCases(); return;
+  }
+  if(act === 'fill'){ openFill(c.id); return; }
+  if(act === 'attachletter'){
+    if(!AI.cfg.enabled){ alert(t('aiUnavailable')); return; }
+    letterTarget = c.id; $('#letterInput').click(); return;
   }
   if(act === 'edit'){ openModal(c.id); return; }
   if(act === 'del'){
@@ -1607,8 +1725,400 @@ $('#importFile').addEventListener('change', e => {
   }
 })();
 
+/* =====================================================================
+   READING A LETTER  (optional, off unless an endpoint is configured)
+   =====================================================================
+   The only place in this app that makes a network request. Everything here
+   is behind an explicit per-document consent, and every failure path falls
+   back to the app behaving exactly as it does without it. */
+
+const AI = {
+  cfg: {endpoint:'', enabled:false},
+  token: null,
+  quota: null,
+  health: null,
+
+  load(){
+    try{
+      const raw = localStorage.getItem('klaser.ai');
+      if(raw) Object.assign(this.cfg, JSON.parse(raw));
+    }catch{}
+    /* A build can ship an endpoint by setting window.KLASER_AI_ENDPOINT. Without
+       one, the feature does not exist as far as the interface is concerned. */
+    if(!this.cfg.endpoint && window.KLASER_AI_ENDPOINT) this.cfg.endpoint = window.KLASER_AI_ENDPOINT;
+    this.cfg.enabled = !!this.cfg.endpoint;
+    return this.cfg.enabled;
+  },
+
+  save(){ try{ localStorage.setItem('klaser.ai', JSON.stringify(this.cfg)); }catch{} },
+
+  url(path){ return this.cfg.endpoint.replace(/\/+$/,'') + path; },
+
+  async checkHealth(){
+    if(!this.cfg.enabled) return null;
+    try{
+      const r = await fetch(this.url('/v1/health'), {method:'GET'});
+      this.health = await r.json();
+    }catch{ this.health = {status:'degraded', accepts_analysis:false, reason:'upstream'}; }
+    return this.health;
+  },
+
+  async getToken(){
+    if(this.token) return this.token;
+    try{ this.token = localStorage.getItem('klaser.aitoken') || null; }catch{}
+    if(this.token) return this.token;
+    const r = await fetch(this.url('/v1/token'), {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({turnstile_token:''})
+    });
+    if(!r.ok) throw new Error('token');
+    const d = await r.json();
+    this.token = d.token; this.quota = d.quota;
+    try{ localStorage.setItem('klaser.aitoken', d.token); }catch{}
+    return this.token;
+  },
+
+  /* Consent is recorded per document, never as a standing permission. What is
+     stored is only that the user has seen the explanation once, so the wording
+     is not repeated on every single scan; the send itself is still a separate
+     deliberate tap each time. */
+  seenConsent(){ try{ return localStorage.getItem('klaser.consent') === '1'; }catch{ return false; } },
+  recordConsent(){ try{ localStorage.setItem('klaser.consent','1'); }catch{} },
+
+  async analyze(blob, hint){
+    const token = await this.getToken();
+    const b64 = (await blobToDataURL(blob)).split(',')[1];
+    const r = await fetch(this.url('/v1/analyze'), {
+      method:'POST',
+      headers:{'content-type':'application/json', authorization:'Bearer '+token},
+      body: JSON.stringify({
+        image: b64,
+        media_type: blob.type || 'image/jpeg',
+        /* scope is fixed: the server rejects anything else, so a bug here cannot
+           turn one document into a standing permission */
+        consent: {granted_at:new Date().toISOString(), scope:'single_document'},
+        hint: hint || undefined
+      })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok){
+      if(data.error && data.error.code === 'invalid_token'){
+        try{ localStorage.removeItem('klaser.aitoken'); }catch{}
+        this.token = null;
+      }
+      const e = new Error(data.error ? data.error.code : 'http_'+r.status);
+      e.he = data.error ? data.error.message_he : t('aiUnavailable');
+      throw e;
+    }
+    this.quota = data.meta && data.meta.quota;
+    return data;
+  }
+};
+
+/* ---------- the modal used for consent, progress and review ---------- */
+function aiSheet(title, bodyHTML, actions){
+  $('#aiTitle').textContent = title;
+  $('#aiBody').innerHTML = bodyHTML;
+  const bar = $('#aiActions');
+  bar.innerHTML = '';
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : '');
+    b.type = 'button';
+    b.textContent = a.label;
+    b.addEventListener('click', a.on);
+    bar.appendChild(b);
+  });
+  $('#aiModal').dataset.open = '1';
+}
+function aiClose(){ $('#aiModal').dataset.open = '0'; }
+
+function askConsent(){
+  return new Promise(resolve => {
+    if(AI.seenConsent()) return resolve(true);
+    aiSheet(t('aiConsentTitle'),
+      `<p style="white-space:pre-line;font-size:14px;line-height:1.6" dir="auto">${esc(t('aiConsentBody'))}</p>`,
+      [ {label:t('aiAccept'), primary:true, on:()=>{ AI.recordConsent(); aiClose(); resolve(true); }},
+        {label:t('aiDecline'), on:()=>{ aiClose(); resolve(false); }} ]);
+  });
+}
+
+/* ---------- review before anything is written ---------- */
+let lastAdd = null;   /* supports one-tap undo */
+
+function showReview(data, targetCaseId){
+  const res = data.result || {};
+  if(res.not_a_letter){
+    aiSheet(t('reviewTitle'), `<p dir="auto">${esc(t('aiNotLetter'))}</p>`,
+      [{label:t('scanClose'), primary:true, on:aiClose}]);
+    return;
+  }
+
+  const req = res.required_docs || [];
+  const extra = res.extra_docs || [];
+  if(!req.length && !extra.length){
+    aiSheet(t('reviewTitle'), `<p dir="auto">${esc(t('reviewNothing'))}</p>`,
+      [{label:t('scanClose'), primary:true, on:aiClose}]);
+    return;
+  }
+
+  const ag = res.agency ? AGENCIES[res.agency] : null;
+  const free = data.meta && data.meta.credits_charged === 0;
+  const left = data.meta && data.meta.quota ? data.meta.quota.remaining : null;
+
+  const row = (id, label, chip, evidence, unverified) => `
+    <label class="doc" style="align-items:flex-start">
+      <input type="checkbox" data-pick="${id}" checked>
+      <span class="doc-text" style="display:block">
+        <span class="lbl" dir="auto">${esc(label)}</span>${chip}
+        ${unverified?`<span class="badge problem" style="margin-inline-start:6px">${esc(t('reviewUnverified'))}</span>`:''}
+        ${evidence?`<span style="display:block;font-size:12px;color:var(--ink-soft);margin-top:3px" dir="auto">\u{201C}${esc(evidence)}\u{201D}</span>`:''}
+      </span>
+    </label>`;
+
+  const meta = [];
+  if(ag) meta.push(esc(nameOf(ag)) + (lang!=='he' ? ' · '+esc(ag.he) : ''));
+  if(res.reference) meta.push(`<span dir="ltr">${esc(res.reference)}</span>`);
+  if(res.deadline)  meta.push(esc(t('deadline'))+': <span dir="ltr">'+esc(res.deadline)+'</span>');
+
+  aiSheet(t('reviewTitle'), `
+    <p style="font-size:13px;color:var(--ink-soft)" dir="auto">${esc(t('reviewBody'))}</p>
+    ${meta.length?`<div class="case-meta" style="margin-bottom:8px">${meta.join(' · ')}</div>`:''}
+    ${free?`<div class="badge done" style="margin-bottom:8px">${esc(t('freeHit'))}</div>`:''}
+    <div class="docs">
+      ${req.map((d,i)=>row('r'+i, nameOf(DOCS[d.key])||d.key, heChip(DOCS[d.key]), d.evidence, false)).join('')}
+      ${extra.map((d,i)=>row('x'+i, d.he, '', d.evidence, true)).join('')}
+    </div>
+    ${left!==null?`<div style="font-size:12px;color:var(--ink-faint);margin-top:10px">${esc(t('creditsLeft',{n:left}))}</div>`:''}
+  `, [
+    {label:t('reviewAdd'), primary:true, on:()=>{
+      const picked = [...$('#aiBody').querySelectorAll('[data-pick]')].filter(x=>x.checked).map(x=>x.dataset.pick);
+      applyAnalysis(res, picked, targetCaseId);
+    }},
+    {label:t('cancel'), on:aiClose}
+  ]);
+}
+
+function applyAnalysis(res, picked, targetCaseId){
+  const docs = [];
+  (res.required_docs||[]).forEach((d,i)=>{ if(picked.includes('r'+i)) docs.push({id:uid(), key:d.key, done:false}); });
+  (res.extra_docs||[]).forEach((d,i)=>{ if(picked.includes('x'+i)) docs.push({id:uid(), text:d.he, done:false}); });
+
+  const form = res.form_to_fill && res.form_to_fill.where !== 'none'
+    ? {code:res.form_to_fill.form_code || res.form_code || null,
+       title_he:res.form_to_fill.form_title_he || res.form_title_he || null,
+       where:res.form_to_fill.where}
+    : null;
+
+  let c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
+  if(c){
+    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:false, prevForm:c.form||null};
+    c.docs.push(...docs);
+    if(form) c.form = form;
+    if(res.ref && !c.ref) c.ref = res.reference;
+  }else{
+    c = {
+      id: uid(),
+      template: res.template || null,
+      agency: res.agency || 'other',
+      title: '',
+      status: docs.length ? 'collecting' : 'todo',
+      ref: res.reference || '',
+      opened: todayISO(),
+      deadline: res.deadline || '',
+      docs, notes: [], open: true,
+      form: form || null
+    };
+    cases.unshift(c);
+    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:true};
+  }
+  save(); aiClose(); render();
+
+  aiSheet(t('reviewTitle'),
+    `<p dir="auto">${esc(t('reviewAdded'))}</p>`,
+    [ {label:t('reviewUndo'), danger:true, on:()=>{ undoAdd(); aiClose(); }},
+      {label:t('scanClose'), primary:true, on:aiClose} ]);
+}
+
+function undoAdd(){
+  if(!lastAdd) return;
+  if(lastAdd.created){
+    cases = cases.filter(x => x.id !== lastAdd.caseId);
+  }else{
+    const c = cases.find(x=>x.id===lastAdd.caseId);
+    if(c){
+      c.docs = c.docs.filter(d => !lastAdd.docIds.includes(d.id));
+      c.form = lastAdd.prevForm;
+    }
+  }
+  lastAdd = null;
+  save(); render();
+}
+
+async function runLetterScan(file, targetCaseId){
+  if(!AI.cfg.enabled) return;
+  if(!(await askConsent())) return;
+
+  aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('aiWorking'))}</p>`, []);
+  try{
+    const blob = await compress(file);
+    const hint = (()=> {
+      const c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
+      return c ? {agency:c.agency||null, template:c.template||null} : null;
+    })();
+    const data = await AI.analyze(blob, hint);
+    showReview(data, targetCaseId);
+  }catch(err){
+    aiSheet(t('aiConsentTitle'),
+      `<p dir="auto">${esc(err.he || t('aiUnavailable'))}</p>`,
+      [{label:t('scanClose'), primary:true, on:aiClose}]);
+  }
+}
+
+let letterTarget = null;
+$('#letterInput').addEventListener('change', e => {
+  const f = (e.target.files||[])[0];
+  e.target.value = '';
+  if(f) runLetterScan(f, letterTarget);
+  letterTarget = null;
+});
+$('#scanLetter').addEventListener('click', () => { letterTarget = null; $('#letterInput').click(); });
+$('#aiModal').addEventListener('click', e => { if(e.target.id === 'aiModal') aiClose(); });
+
+
+/* =====================================================================
+   FILLING A FORM  (entirely on-device — nothing here is ever sent)
+   =====================================================================
+   The field map says what a blank form asks for. The profile says what the
+   answers are. Joining them happens here, in the browser, and the profile
+   has no code path that reaches the network. */
+
+const FORMS = {
+  'בל/5020': {
+    form_id:'btl_child_allowance_5020',
+    he:'בקשה לקצבת ילדים',
+    agency:'btl',
+    fields:[
+      {id:'claimant_name',  he:'שם התובע/ת',                type:'text',      profile_key:'full_name',   required:true},
+      {id:'claimant_id',    he:'מספר זהות',                  type:'id_number', profile_key:'id_number',   required:true, boxed_digits:9},
+      {id:'birth_date',     he:'תאריך לידה',                 type:'date',      profile_key:'birth_date',  required:true},
+      {id:'address',        he:'כתובת מלאה',                 type:'text',      profile_key:'address',     required:true},
+      {id:'city',           he:'יישוב',                      type:'text',      profile_key:'city',        required:true},
+      {id:'phone',          he:'טלפון',                      type:'phone',     profile_key:'phone',       required:true, direction:'ltr'},
+      {id:'email',          he:'דואר אלקטרוני',              type:'email',     profile_key:'email',       required:false, direction:'ltr'},
+      {id:'bank_code',      he:'קוד בנק',                    type:'digits',    profile_key:'bank_code',   required:true, direction:'ltr'},
+      {id:'bank_branch',    he:'מספר סניף',                  type:'digits',    profile_key:'bank_branch', required:true, direction:'ltr'},
+      {id:'bank_account',   he:'מספר חשבון',                 type:'digits',    profile_key:'bank_account',required:true, direction:'ltr'},
+      {id:'children_count', he:'מספר ילדים בבקשה',           type:'digits',    profile_key:'children_count', required:true},
+      {id:'aliyah_date',    he:'תאריך עלייה (לעולים)',       type:'date',      profile_key:'aliyah_date', required:false}
+    ]
+  }
+};
+
+const PROFILE = {
+  data: {},
+  load(){ try{ this.data = JSON.parse(localStorage.getItem('klaser.profile') || '{}'); }catch{ this.data = {}; } return this.data; },
+  save(){ try{ localStorage.setItem('klaser.profile', JSON.stringify(this.data)); }catch{} }
+};
+
+/* The ת״ז check digit. Catching a typo here is worth more than catching it at
+   the counter three weeks later. */
+function validIsraeliId(v){
+  const d = String(v||'').replace(/\D/g,'');
+  if(d.length < 5 || d.length > 9) return false;
+  const p = d.padStart(9,'0');
+  let sum = 0;
+  for(let i=0;i<9;i++){
+    let n = +p[i] * ((i % 2) + 1);
+    if(n > 9) n -= 9;
+    sum += n;
+  }
+  return sum % 10 === 0;
+}
+
+let fillCaseId = null;
+
+function openFill(caseId){
+  const c = cases.find(x=>x.id===caseId); if(!c) return;
+  fillCaseId = caseId;
+  PROFILE.load();
+  const map = c.form && c.form.code ? FORMS[c.form.code] : null;
+  const title = (c.form && c.form.title_he) || (map && map.he) || caseTitle(c);
+
+  $('#fillTitleH').textContent = t('fillTitle');
+
+  const fields = map ? map.fields : Object.keys(PROFILE.data).map(k => ({id:k, he:k, type:'text', profile_key:k}));
+  const rows = fields.map(f => {
+    const val = PROFILE.data[f.profile_key] || '';
+    const dir = f.direction === 'ltr' ? 'ltr' : 'auto';
+    const bad = f.type === 'id_number' && val && !validIsraeliId(val);
+    return `<label class="field">
+      <span>${esc(f.he)}${f.required?' *':''}</span>
+      <input type="${f.type==='date'?'date':'text'}" data-fill="${esc(f.profile_key)}"
+             value="${esc(val)}" dir="${dir}" autocomplete="off"
+             ${f.type==='date'?'':'inputmode="'+(f.type==='digits'||f.type==='id_number'?'numeric':'text')+'"'}>
+      ${bad?`<span class="badge problem">\u{2717}</span>`:''}
+    </label>`;
+  }).join('');
+
+  const missing = fields.filter(f => f.required && !PROFILE.data[f.profile_key]).length;
+
+  $('#fillBody').innerHTML = `
+    <div class="case-meta" style="margin-bottom:6px"><b dir="auto">${esc(title)}</b>${c.form&&c.form.code?` <span dir="ltr">${esc(c.form.code)}</span>`:''}</div>
+    <div style="font-size:12px;color:var(--moss,var(--ink-soft));margin-bottom:10px" dir="auto">${esc(t('fillLocal'))}</div>
+    ${!map?`<div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px" dir="auto">${esc(t('fillNoMap'))}</div>`:''}
+    ${missing?`<div class="badge due" style="margin-bottom:8px">${esc(t('fillMissing',{n:missing}))}</div>`:''}
+    ${rows}`;
+  $('#fillModal').dataset.open = '1';
+}
+
+function collectFill(){
+  const out = {};
+  $('#fillBody').querySelectorAll('[data-fill]').forEach(i => { out[i.dataset.fill] = i.value.trim(); });
+  return out;
+}
+
+$('#fillSaveBtn').addEventListener('click', () => {
+  Object.assign(PROFILE.data, collectFill());
+  PROFILE.save();
+  openFill(fillCaseId);
+});
+
+$('#fillPrintBtn').addEventListener('click', () => {
+  const c = cases.find(x=>x.id===fillCaseId); if(!c) return;
+  Object.assign(PROFILE.data, collectFill());
+  PROFILE.save();
+  const map = c.form && c.form.code ? FORMS[c.form.code] : null;
+  const fields = map ? map.fields : [];
+  const title = (c.form && c.form.title_he) || (map && map.he) || caseTitle(c);
+  const ag = AGENCIES[c.agency];
+
+  const area = document.getElementById('printArea');
+  area.innerHTML = `
+    <h1>${esc(title)}</h1>
+    <p class="sub">${esc(ag?nameOf(ag):'')}${c.form&&c.form.code?' · '+esc(c.form.code):''}${c.ref?' · '+esc(c.ref):''}</p>
+    <table>${fields.map(f=>`
+      <tr><th>${esc(f.he)}</th><td dir="${f.direction==='ltr'?'ltr':'auto'}">${esc(PROFILE.data[f.profile_key]||'—')}</td></tr>`).join('')}
+    </table>
+    <p class="foot">${esc(t('disclaimer'))}</p>`;
+  document.body.classList.add('printing');
+  window.print();
+  setTimeout(()=>document.body.classList.remove('printing'), 500);
+});
+
+$('#fillCloseBtn').addEventListener('click', () => { $('#fillModal').dataset.open = '0'; });
+$('#fillModal').addEventListener('click', e => { if(e.target.id === 'fillModal') $('#fillModal').dataset.open = '0'; });
+
 /* ======================= BOOT ======================= */
 load();
+if(AI.load()){
+  $('#scanLetter').hidden = false;
+  /* health is advisory: if the service says it is not accepting work, the
+     action is hidden rather than left to fail on tap */
+  AI.checkHealth().then(h => {
+    if(h && h.accepts_analysis === false) $('#scanLetter').hidden = true;
+  });
+}
 render();
 </script>
 </body>

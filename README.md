@@ -42,9 +42,52 @@ out loud.
 - **Backup / restore** — export everything to a JSON file and read it back.
 - **Share** — native share sheet where available, WhatsApp otherwise.
 
+## Reading a letter, and filling the form (optional)
+
+Two things sit on top of the binder, and **both are off unless you switch them on**.
+
+**Reading a letter.** Photograph a letter an agency sent you and Klaser builds the
+document checklist from it. Each suggested item carries the Hebrew sentence in the
+letter it came from, so you can check it in two seconds; you tick what is right
+before anything is written, and one tap undoes the lot. Documents come back as
+catalogue keys, never as generated text, so they arrive already translated into all
+four languages with their Hebrew term attached — and a document name that is not in
+the catalogue is shown separately, marked unverified, rather than quietly guessed at.
+
+This is the only part that touches a network. One photograph, one document at a
+time, on an explicit tap. Nothing is stored — not by the service, not by the model
+provider. Decline, or leave it switched off, and the app behaves exactly as it does
+without it. A test asserts that.
+
+**Filling the form.** When every document is collected, Klaser offers to fill the
+form. This half never sends anything at all: the field map describing what the blank
+form asks for is public reference data, your answers live in a profile in this
+browser, and the two are joined on your device. Your ת״ז is check-digit validated
+before it is printed and never leaves the machine — there is no endpoint that could
+accept it. A test asserts that too, at the network level rather than by inspection.
+
+To switch it on, set an endpoint before the app loads:
+
+```html
+<script>window.KLASER_AI_ENDPOINT = 'https://api.example.com';</script>
+```
+
+Without one, the buttons do not exist.
+
 ## Running it
 
 No build, no dependencies, no server. Open `index.html` in a browser.
+
+The optional service lives in `server/` and runs on Cloudflare Workers:
+
+```bash
+node server/dev.js          # mock provider — the whole flow works with no API key
+ANTHROPIC_API_KEY=sk-… node server/dev.js
+node tests/run.mjs          # 310 assertions, browser and server
+```
+
+The mock provider is not a stub: it returns realistic Hebrew fixtures in the real
+schema, so the end-to-end test exercises the pipeline rather than the mock.
 
 To deploy: GitHub Pages from the repository root. The empty `.nojekyll` file
 stops Jekyll from touching it.
@@ -84,6 +127,7 @@ block in `index.html`. No logic is language-specific.
 | `DOCS` | Reusable documents, named in each language |
 | `TEMPLATES` | Known processes → agency + starting document list |
 | `GLOSSARY` | Hebrew terms with transliteration and translations |
+| `FORMS` | Field maps: what a blank official form asks for, and which profile key answers it |
 
 **Adding a language** means adding one entry to `LANGS` and one key to each
 object above. RTL is handled by the `dir` field, and the layout uses logical CSS

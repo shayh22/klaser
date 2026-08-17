@@ -1,0 +1,21 @@
+name = "klaser-api"
+main = "server/index.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# No R2, no KV for documents — there is nowhere to put one. D1 holds a credit
+# counter and a daily spend total, and nothing else.
+[[d1_databases]]
+binding = "DB"
+database_name = "klaser"
+database_id = "REPLACE_ME"
+
+[vars]
+FREE_CREDITS = "10"
+DAILY_SPEND_CAP_USD = "25"
+ALLOWED_ORIGINS = "https://shayh22.github.io"
+KILL_SWITCH = ""
+
+# Secrets, set with `wrangler secret put`:
+#   ANTHROPIC_API_KEY
+#   TURNSTILE_SECRET
