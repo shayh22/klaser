@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://klaser.app/contracts/analysis.schema.json",
+  "title": "Letter analysis result",
+  "description": "What /v1/analyze returns for one photographed letter. Used verbatim as the model's structured-output schema. Enum members are injected at boot from contracts/catalogue.json — see the $comment on each field for which path supplies them. The schema is never hand-edited to add a key; add it to index.html and regenerate the catalogue.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agency", "template", "required_docs", "extra_docs", "deadline", "reference", "confidence", "language"],
+  "properties": {
+    "agency": {
+      "type": ["string", "null"],
+      "$comment": "enum := Object.keys(catalogue.agencies). null when the letter names no agency this app knows.",
+      "description": "Which agency sent the letter."
+    },
+    "agency_child": {
+      "type": ["string", "null"],
+      "default": null,
+      "$comment": "One of catalogue.agencies[agency].children, when the parent is an umbrella (bank, health fund).",
+      "description": "The specific bank or health fund, when the agency is an umbrella entry."
+    },
+    "template": {
+      "type": ["string", "null"],
+      "$comment": "enum := Object.keys(catalogue.templates). null when the letter is about no known process.",
+      "description": "Which known process this letter belongs to, if any."
+    },
+    "required_docs": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "evidence", "confidence"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "$comment": "enum := Object.keys(catalogue.docs)."
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "The Hebrew phrase in the letter that asks for this document. Quoted, not paraphrased — it is what the user checks the suggestion against."
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "description": "Documents the letter asks for, as catalogue keys. Each already carries four translations and a Hebrew term, so no name is ever generated."
+    },
+    "extra_docs": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["he", "evidence", "confidence"],
+        "properties": {
+          "he": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Hebrew name exactly as the letter writes it. Not translated — the client shows it verbatim and labels it unverified."
+          },
+          "evidence": { "type": "string", "maxLength": 200 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "description": "Requested documents with no catalogue key. Surfaced separately and never silently mixed into required_docs, because these are the ones that can be wrong."
+    },
+    "deadline": {
+      "type": ["string", "null"],
+      "format": "date",
+      "$comment": "ISO 8601 date. The model resolves relative wording ('תוך 30 יום') against letter_date, and returns null rather than guessing when letter_date is unreadable.",
+      "description": "When the response is due."
+    },
+    "letter_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "The date printed on the letter, needed to resolve relative deadlines."
+    },
+    "reference": {
+      "type": ["string", "null"],
+      "maxLength": 60,
+      "description": "The אסמכתא / case number, copied character for character. This is the thing worth arguing with later."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Overall. Below the server threshold the result is returned but the client adds nothing."
+    },
+    "language": {
+      "type": "string",
+      "enum": ["he", "en", "fr", "ru", "ar", "other"],
+      "description": "Language the letter is written in. At launch anything but 'he' is returned with a low confidence and no additions."
+    },
+    "not_a_letter": {
+      "type": "boolean",
+      "default": false,
+      "description": "The image is not an agency letter — a selfie, a receipt, a blurry frame. Set by the Haiku pre-check without reaching the main model."
+    }
+  }
+}

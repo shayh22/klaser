@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "generated_from": "index.html",
+  "language": "he",
+  "statuses": [
+    "todo",
+    "collecting",
+    "submitted",
+    "waiting",
+    "problem",
+    "done"
+  ],
+  "agencies": {
+    "btl": {
+      "he": "ביטוח לאומי",
+      "tr": "Bituach Leumi"
+    },
+    "rashut": {
+      "he": "רשות האוכלוסין וההגירה",
+      "tr": "Rashut HaOchlusin"
+    },
+    "klita": {
+      "he": "משרד העלייה והקליטה",
+      "tr": "Misrad HaKlita"
+    },
+    "mas": {
+      "he": "רשות המסים",
+      "tr": "Rashut HaMisim"
+    },
+    "iriya": {
+      "he": "עירייה / רשות מקומית",
+      "tr": "Iriya"
+    },
+    "kupa": {
+      "he": "קופת חולים",
+      "tr": "Kupat Cholim",
+      "children": [
+        "שירותי בריאות כללית",
+        "מכבי שירותי בריאות",
+        "קופת חולים מאוחדת",
+        "לאומית שירותי בריאות"
+      ]
+    },
+    "tachbura": {
+      "he": "משרד התחבורה",
+      "tr": "Misrad HaTachbura"
+    },
+    "chinuch": {
+      "he": "משרד החינוך",
+      "tr": "Misrad HaChinuch"
+    },
+    "bank": {
+      "he": "בנק",
+      "tr": "Bank",
+      "children": [
+        "בנק אש ישראל",
+        "בנק יהב לעובדי המדינה",
+        "בנק לאומי לישראל",
+        "בנק דיסקונט לישראל",
+        "בנק הפועלים",
+        "בנק מרכנתיל דיסקונט",
+        "וואן זירו הבנק הדיגיטלי",
+        "בנק מזרחי טפחות",
+        "הבנק הבינלאומי הראשון לישראל",
+        "בנק מסד",
+        "בנק ירושלים"
+      ]
+    }
+  },
+  "docs": {
+    "passport": {
+      "he": "דרכון",
+      "tr": "Darkon"
+    },
+    "teudat_oleh": {
+      "he": "תעודת עולה",
+      "tr": "Teudat Oleh"
+    },
+    "teudat_zehut": {
+      "he": "תעודת זהות",
+      "tr": "Teudat Zehut"
+    },
+    "sefach": {
+      "he": "ספח תעודת זהות",
+      "tr": "Sefach"
+    },
+    "birth_cert": {
+      "he": "תעודת לידה (עם אפוסטיל)",
+      "tr": "Teudat Leda"
+    },
+    "marriage_cert": {
+      "he": "תעודת נישואין",
+      "tr": "Teudat Nisuin"
+    },
+    "bank_confirm": {
+      "he": "אישור ניהול חשבון בנק",
+      "tr": "Ishur Nihul Cheshbon"
+    },
+    "photos": {
+      "he": "תמונות פספורט",
+      "tr": "Tmunot Passport"
+    },
+    "rental": {
+      "he": "חוזה שכירות",
+      "tr": "Chozeh Schirut"
+    },
+    "utility": {
+      "he": "חשבון ארנונה או חשמל",
+      "tr": "Cheshbon Arnona"
+    },
+    "diploma": {
+      "he": "תעודת תואר",
+      "tr": "Teudat Toar"
+    },
+    "foreign_license": {
+      "he": "רישיון נהיגה זר",
+      "tr": "Rishayon Nehiga Zar"
+    },
+    "eye_test": {
+      "he": "בדיקת ראייה (טופס ירוק)",
+      "tr": "Tofes Yarok"
+    },
+    "tlush": {
+      "he": "תלושי שכר",
+      "tr": "Tlushei Sachar"
+    },
+    "claim_form": {
+      "he": "טופס תביעה חתום",
+      "tr": "Tofes Tviya"
+    }
+  },
+  "templates": {
+    "teudat_zehut": {
+      "he": "הנפקת תעודת זהות",
+      "agency": "rashut",
+      "docs": [
+        "passport",
+        "teudat_oleh",
+        "photos",
+        "birth_cert"
+      ]
+    },
+    "passport_il": {
+      "he": "הנפקת דרכון ישראלי",
+      "agency": "rashut",
+      "docs": [
+        "teudat_zehut",
+        "photos"
+      ]
+    },
+    "sal_klita": {
+      "he": "סל קליטה",
+      "agency": "klita",
+      "docs": [
+        "teudat_zehut",
+        "teudat_oleh",
+        "bank_confirm"
+      ]
+    },
+    "health": {
+      "he": "רישום לקופת חולים",
+      "agency": "kupa",
+      "docs": [
+        "teudat_zehut",
+        "teudat_oleh",
+        "sefach"
+      ]
+    },
+    "btl_register": {
+      "he": "רישום בביטוח לאומי",
+      "agency": "btl",
+      "docs": [
+        "teudat_zehut",
+        "teudat_oleh",
+        "bank_confirm"
+      ]
+    },
+    "license": {
+      "he": "המרת רישיון נהיגה",
+      "agency": "tachbura",
+      "docs": [
+        "foreign_license",
+        "teudat_zehut",
+        "eye_test",
+        "photos"
+      ]
+    },
+    "bank_account": {
+      "he": "פתיחת חשבון בנק",
+      "agency": "bank",
+      "docs": [
+        "teudat_zehut",
+        "teudat_oleh",
+        "passport"
+      ]
+    },
+    "degree": {
+      "he": "הכרה בתואר אקדמי",
+      "agency": "klita",
+      "docs": [
+        "diploma",
+        "passport",
+        "teudat_zehut"
+      ]
+    },
+    "child_allowance": {
+      "he": "קצבת ילדים",
+      "agency": "btl",
+      "docs": [
+        "teudat_zehut",
+        "sefach",
+        "bank_confirm",
+        "claim_form"
+      ]
+    },
+    "unemployment": {
+      "he": "דמי אבטלה",
+      "agency": "btl",
+      "docs": [
+        "teudat_zehut",
+        "tlush",
+        "claim_form",
+        "bank_confirm"
+      ]
+    },
+    "arnona": {
+      "he": "הנחה בארנונה",
+      "agency": "iriya",
+      "docs": [
+        "teudat_zehut",
+        "utility",
+        "rental",
+        "tlush"
+      ]
+    },
+    "ulpan": {
+      "he": "רישום לאולפן",
+      "agency": "klita",
+      "docs": [
+        "teudat_zehut",
+        "teudat_oleh"
+      ]
+    }
+  },
+  "checksum": "ae31c72a1c3ac9f0"
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://klaser.app/contracts/formmap.schema.json",
+  "title": "Blank form field map",
+  "description": "Describes what a blank official form asks for and where on the page each answer goes. Computed once per form by tools/build-formmap.mjs, served as a static public file, and joined to the user's local profile on their device. It contains no user data and never will — that is the whole reason Track B needs no server at request time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["form_id", "version", "he", "agency", "pages", "fields"],
+  "properties": {
+    "form_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "description": "Stable slug, e.g. 'btl_child_allowance_5020'. Never reused for a different form."
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "revision_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "The revision date printed on the form itself, when it has one. Agencies reissue forms; this is how a stale map is spotted."
+    },
+    "he": { "type": "string", "description": "The form's official Hebrew name." },
+    "official_url": { "type": ["string", "null"], "format": "uri" },
+    "agency": { "type": "string", "$comment": "enum := Object.keys(catalogue.agencies)." },
+    "template": { "type": ["string", "null"], "$comment": "enum := Object.keys(catalogue.templates)." },
+    "pages": { "type": "integer", "minimum": 1 },
+    "page_size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "unit"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "enum": ["pt", "mm"] }
+      },
+      "description": "Coordinate space for every box below. Origin is top-left."
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "he", "type", "page", "box"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_]*$" },
+          "he": { "type": "string", "description": "The label printed next to the box, verbatim." },
+          "type": {
+            "type": "string",
+            "enum": ["text", "digits", "id_number", "date", "checkbox", "signature", "choice", "amount", "phone", "email", "iban"],
+            "description": "Drives on-device validation. 'id_number' runs the ת״ז check digit before printing."
+          },
+          "profile_key": {
+            "type": ["string", "null"],
+            "description": "Which local profile field answers this. null means the user must type it — the fill engine never invents a value.",
+            "$comment": "Must exist in the profile model owned by workstream E. CI validates the reference."
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "he", "box"],
+              "properties": {
+                "value": { "type": "string" },
+                "he": { "type": "string" },
+                "box": { "$ref": "#/$defs/box" }
+              }
+            },
+            "description": "For 'choice': each option has its own tick box."
+          },
+          "required": { "type": "boolean", "default": false },
+          "max_length": { "type": ["integer", "null"], "minimum": 1 },
+          "page": { "type": "integer", "minimum": 1 },
+          "box": { "$ref": "#/$defs/box" },
+          "direction": {
+            "type": "string",
+            "enum": ["rtl", "ltr"],
+            "default": "rtl",
+            "description": "Hebrew names run rtl; account numbers and Latin names run ltr in the same form. Getting this wrong prints the value backwards."
+          },
+          "boxed_digits": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Israeli forms print one square per digit. When set, the engine distributes characters across that many evenly spaced cells inside the box instead of rendering a run of text."
+          },
+          "note_he": { "type": ["string", "null"], "maxLength": 200 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

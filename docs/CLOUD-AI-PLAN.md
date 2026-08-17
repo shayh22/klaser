@@ -106,23 +106,35 @@ offline form-map builder, and that is better run as a batch.
 
 ## 4. Cost
 
-Per analysis: one page image at the high-resolution vision tier (≈4,780 image
-tokens), ≈1,200 tokens of instructions, ≈900 output tokens, ≈6,000-token static
-catalogue. The catalogue is identical on every request — **prompt-cache it** and its
-read price drops to roughly a tenth. That is the entire cost lever.
+> **Revised after Phase 0.** The generated catalogue turned out to be ~1,570 tokens,
+> not the 6,000 estimated before it existed. That makes prompt caching a much
+> smaller lever than first claimed, and moves image resolution into first place.
+> Figures below replace the earlier ones.
 
-| Model | Cold | Catalogue cached | Per 1,000 documents |
-|---|---:|---:|---:|
-| Haiku 4.5 | $0.0165 | $0.0111 | $11.08 |
-| **Sonnet 5 (standard)** | **$0.0495** | **$0.0333** | **$33.25** |
-| Sonnet 5 (intro, to 31 Aug) | $0.0330 | $0.0222 | $22.17 |
-| Opus 5 | $0.0824 | $0.0554 | $55.42 |
+Per analysis: one page image, ≈1,200 tokens of instructions, ≈900 output tokens, and
+the ≈1,600-token catalogue. At 2200px the **image alone is 63% of the input** — so
+resolution, not caching, is the dominant cost term.
 
-At ₪3.7/$:
+Sonnet 5 at standard pricing, catalogue cached, per 1,000 documents:
 
-- **₪0.12** per analysed document
-- **₪1.5** per free-tier user per year at 10 documents/month
-- **₪620** a year for an organisation running 5,000 documents
+| Image | Haiku 4.5 | **Sonnet 5** | Sonnet 5 (intro) | Opus 5 |
+|---|---:|---:|---:|---:|
+| 1600px — what the app's existing compression already produces | $8.27 | **$24.81** | $16.54 | $41.36 |
+| 2200px — high fidelity | $10.64 | **$31.93** | $21.29 | $53.22 |
+
+At ₪3.7/$, Sonnet 5 with the catalogue cached:
+
+- **₪0.09–0.12** per analysed document, depending on resolution
+- **₪1.1–1.5** per free-tier user per year at 10 documents/month
+- **₪460–590** a year for an organisation running 5,000 documents
+
+**What the levers are actually worth.** Caching the catalogue saves 19% of input
+tokens, ~12% of total cost. Dropping the image from 2200px to 1600px saves 22% —
+roughly twice as much. Caching is still worth doing (the catalogue clears Sonnet 5's
+1,024-token cache minimum, and the 1.25× write amortises immediately), but the
+question that decides the bill is **how small an image still reads a Hebrew letter
+correctly**, and that is an eval question, not an architecture one. It is now an
+explicit task in workstream F.
 
 Against B2B/B2G pricing of ₪15–30k per organisation per year, inference is 2–4% of
 revenue. The cost that threatens this feature is not tokens — it is an unmetered
@@ -151,24 +163,29 @@ pre-check kills selfies, blurry frames and receipts before they reach Sonnet.
 Seven agents writing against an unwritten contract produce seven incompatible
 guesses. Phase 0 exists so every later workstream codes against a file it can read.
 
-All of this merges before any workstream opens:
+| | Deliverable | State |
+|---|---|---|
+| 1 | `contracts/openapi.yaml` — `/v1/token`, `/v1/analyze`, `/v1/health`; shapes, status codes, one error envelope | **done** |
+| 2 | `contracts/analysis.schema.json` — the structured-output schema | **done** |
+| 3 | `contracts/formmap.schema.json` — the Track B field map | **done** |
+| 4 | `tools/extract-catalogue.mjs` + `contracts/catalogue.json` | **done** — 9 agencies, 15 documents, 12 processes, ~1,570 tokens |
+| 5 | `docs/privacy-decisions.md` | **done** |
+| 6 | Feature flag and the offline contract, wired into the test suite | open |
+| 7 | CI: `extract-catalogue.mjs --check`, schema validation, contract tests against a generated stub | open |
 
-1. `contracts/openapi.yaml` — `/v1/token`, `/v1/analyze`, `/v1/health`. Request and
-   response shapes, status codes, one error envelope.
-2. `contracts/analysis.schema.json` and `contracts/formmap.schema.json` — the
-   structured-output schemas.
-3. `tools/extract-catalogue.mjs` — **generates** `catalogue.json` from the
-   `AGENCIES` / `DOCS` / `TEMPLATES` objects in `index.html`. Hand-copying them
-   creates two catalogues that silently drift; a generator plus a CI check that the
-   committed file matches does not.
-4. `docs/privacy-decisions.md` — what is sent, what is never sent, retention (none),
-   the consent wording in four languages, and what happens when the user says no.
-5. The feature flag and the offline contract: with AI disabled or unreachable,
-   Klaser behaves exactly as it does today.
-6. Repo layout and the owns / must-not-touch table below, as a real document.
+On (4): the generator exists precisely so there is one catalogue, not two.
+Hand-copying `AGENCIES` / `DOCS` / `TEMPLATES` out of `index.html` creates a second
+list that drifts the first time someone adds a document to one of them. `--check`
+mode fails CI when the committed JSON no longer matches the app.
 
-**Done when** a stub server generated from the OpenAPI file answers a contract test,
-and `extract-catalogue.mjs` round-trips the live app's data.
+Deliberate omissions from the catalogue, both of which would otherwise cost accuracy:
+the `other` agency key is dropped, because offering the model a bucket labelled
+"other" gives every wrong answer somewhere to hide; and umbrella agencies carry their
+`children` (the four health funds, the eleven banks) so the answer can be "Maccabi"
+rather than "a health fund".
+
+**Phase 0 closes when** a stub server generated from the OpenAPI file answers a
+contract test in CI, and `--check` runs on every push.
 
 ## Phase 1 — seven parallel workstreams
 
@@ -240,6 +257,10 @@ Lettered, not numbered: they run in parallel and the ordering carries no meaning
   Photographed the way users photograph — angled, creased, half in shadow.
 - **Metrics** — required-document recall · false-add rate · agency accuracy ·
   deadline exactness · cost and latency per document.
+- **Resolution curve** — run the whole gold set at 1200 / 1600 / 2200px and plot
+  accuracy against cost. Image tokens are the largest single cost term (§4), so the
+  cheapest resolution that holds the thresholds is worth more than any prompt
+  tuning. Deliverable is a number, not an opinion.
 - **Rollout gate** — recall ≥ 0.90, false-add ≤ 0.05, agency ≥ 0.95, deadline exact
   ≥ 0.90. Below any of these the feature does not ship; it is a checklist people act on.
 - **Must not touch** — prompts. The team that writes the prompt does not own the scoreboard.
@@ -275,9 +296,13 @@ ships until it exists — so it starts on day one alongside everything else.
 |---|---|
 | **Zero-data-retention agreement** with Anthropic | Must be in place before a single real document is sent. It is also what removes Fable 5 from consideration, so the model choice depends on it |
 | **Liability wording** | Today's disclaimer covers a hand-written starting checklist. A machine-generated one read off the user's own letter feels authoritative in a way the current wording does not account for |
-| **The MIT licence** | Still grants everyone the right to copy, modify and sell Klaser. Survivable for a static file; a different proposition with a paid service attached |
-| **Government emblems in `docs/og-image.jpg`** | Unresolved and now more pointed: the image shows the state emblem and agency logos, contradicting the app's own "not an official service" disclaimer |
-| **Free-tier quota** | Suggested: 10 documents per device per month — roughly ₪1.5/user/year, enough to be useful during the first weeks after arrival, which is when the funnel matters |
+| **Hosting region** | Cloudflare will run the worker wherever the request lands. If the answer needs to be "EU/Israel only", that is a config decision to take before launch, not after |
+| **Free-tier quota** | Suggested: 10 documents per device per month — roughly ₪1.1–1.5/user/year, enough to be useful during the first weeks after arrival, which is when the funnel matters |
+
+Moved to `docs/BACKLOG.md`, deferred by decision rather than forgotten:
+**B-1** government symbols in the share image and the four-language disclaimer
+(researched, wording drafted), **B-2** the MIT licence versus a paid service,
+**B-3** the 2.4MB header video, **B-4** unverified gov.il slugs.
 
 ---
 

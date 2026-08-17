@@ -1,0 +1,267 @@
+openapi: 3.1.0
+
+info:
+  title: Klaser cloud service
+  version: 0.1.0
+  description: |
+    Two endpoints do real work: one issues an anonymous device token, one reads a
+    photographed letter and answers with catalogue keys. There is deliberately no
+    endpoint that stores a document, no endpoint that reads one back, and no
+    endpoint that touches the user's profile — the profile never leaves the device,
+    so no route could serve it.
+
+    The service is optional. Every response has a client-side fallback: with the
+    feature off, unreachable, or degraded, Klaser behaves exactly as it does today.
+  license:
+    name: See LICENSE and docs/BACKLOG.md B-2
+
+servers:
+  - url: https://api.klaser.app
+    description: Production
+  - url: http://localhost:8787
+    description: wrangler dev
+
+tags:
+  - name: session
+  - name: analysis
+  - name: service
+
+paths:
+  /v1/health:
+    get:
+      tags: [service]
+      summary: Service state, including whether it is accepting work
+      description: |
+        The client polls this before offering the AI action, and honours `degraded`
+        by hiding the action rather than letting the user hit an error. A global
+        spend cap being reached is a degradation, not an outage.
+      security: []
+      responses:
+        '200':
+          description: Always 200 while the worker is up, even when degraded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, catalogue_version, accepts_analysis]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  accepts_analysis:
+                    type: boolean
+                    description: False when a spend cap or the kill switch is engaged.
+                  reason:
+                    type: [string, 'null']
+                    enum: [spend_cap, kill_switch, upstream, null]
+                  catalogue_version:
+                    type: integer
+                    description: Client refetches nothing — this is for support and eval bookkeeping.
+              example:
+                status: ok
+                accepts_analysis: true
+                reason: null
+                catalogue_version: 1
+
+  /v1/token:
+    post:
+      tags: [session]
+      summary: Issue an anonymous device token
+      description: |
+        No account, no email, no identity. A token is bound to nothing but its own
+        quota counter. Turnstile gates issuance so the free tier cannot be farmed;
+        it is the only third-party call in the whole design and it happens once per
+        device, not per document.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [turnstile_token]
+              properties:
+                turnstile_token:
+                  type: string
+                  maxLength: 2048
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expires_at, quota]
+                properties:
+                  token:
+                    type: string
+                    description: Opaque. Stored in localStorage alongside the consent record.
+                  expires_at:
+                    type: string
+                    format: date-time
+                  quota:
+                    $ref: '#/components/schemas/Quota'
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /v1/analyze:
+    post:
+      tags: [analysis]
+      summary: Read one photographed letter and return catalogue keys
+      description: |
+        One image, one response. The image is held in memory for the duration of the
+        request and is never written to disk, a bucket, a queue or a log line.
+
+        The response proposes; it does not commit. The client shows the user what was
+        found, with the Hebrew phrase each suggestion came from, and adds nothing
+        the user has not seen.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image, consent]
+              properties:
+                image:
+                  type: string
+                  contentEncoding: base64
+                  description: |
+                    A single page, JPEG or PNG, already downscaled by the client to
+                    1600px on the long edge — the same compression path the existing
+                    scan feature uses. Max 4MB decoded.
+                media_type:
+                  type: string
+                  enum: [image/jpeg, image/png, application/pdf]
+                  default: image/jpeg
+                consent:
+                  type: object
+                  required: [granted_at, scope]
+                  description: |
+                    Echoed from the client's stored consent record. The server rejects
+                    a request whose scope is not `single_document`, so a client bug
+                    cannot turn a one-off into a standing permission.
+                  properties:
+                    granted_at:
+                      type: string
+                      format: date-time
+                    scope:
+                      type: string
+                      enum: [single_document]
+                hint:
+                  type: object
+                  description: Optional. Narrows the answer when the user analysed from inside an open case.
+                  properties:
+                    agency:
+                      type: [string, 'null']
+                    template:
+                      type: [string, 'null']
+      responses:
+        '200':
+          description: |
+            Analysis complete. A low-confidence or `not_a_letter` result is still a
+            200 — it is an answer, not an error, and the client renders it as "could
+            not read this" rather than a failure.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [result, meta]
+                properties:
+                  result:
+                    $ref: 'https://klaser.app/contracts/analysis.schema.json'
+                  meta:
+                    $ref: '#/components/schemas/AnalysisMeta'
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '429':
+          description: Quota exhausted for this device, or rate limited
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Spend cap, kill switch, or upstream unavailable. The client falls back to local-only silently.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    deviceToken:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Quota:
+      type: object
+      required: [limit, remaining, resets_at]
+      properties:
+        limit:
+          type: integer
+          description: Documents per period. 10/month at launch — see docs/CLOUD-AI-PLAN.md.
+        remaining: { type: integer }
+        resets_at: { type: string, format: date-time }
+
+    AnalysisMeta:
+      type: object
+      required: [model, latency_ms, quota]
+      description: |
+        Everything here is about the request, never about its content. This is the
+        same shape workstream G logs, which is how "no document content in logs"
+        stays true by construction rather than by review.
+      properties:
+        model:
+          type: string
+          description: Which model actually answered, after the pre-check and any escalation.
+        escalated:
+          type: boolean
+          default: false
+        latency_ms: { type: integer }
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        cache_read_tokens: { type: integer }
+        quota: { $ref: '#/components/schemas/Quota' }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message_he]
+          properties:
+            code:
+              type: string
+              enum:
+                - bad_request
+                - image_too_large
+                - unsupported_media_type
+                - invalid_token
+                - consent_missing
+                - quota_exhausted
+                - rate_limited
+                - service_degraded
+                - upstream_error
+                - internal
+            message_he:
+              type: string
+              description: |
+                Shown to the user as-is. Says what happened and what to do about it —
+                the client does not translate error text at launch, and never
+                surfaces a raw upstream message.
+            retry_after:
+              type: [integer, 'null']
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+security:
+  - deviceToken: []
