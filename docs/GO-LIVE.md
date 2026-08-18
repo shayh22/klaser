@@ -32,28 +32,41 @@ real letter belonging to a real person, not after. It is also what keeps
 Testing with letters you wrote yourself needs no agreement. Testing with someone
 else's ביטוח לאומי letter does.
 
-### 3. Cloudflare — about 20 minutes
+### 3. Cloudflare — one command
 
 ```bash
-npm i -g wrangler && wrangler login
-wrangler d1 create klaser                    # copy the id into wrangler.toml
-wrangler d1 execute klaser --remote --command "$(node -e "import('./server/store.js').then(m=>console.log(m.SCHEMA_SQL))")"
-wrangler secret put ANTHROPIC_API_KEY
-wrangler secret put TURNSTILE_SECRET         # optional; without it tokens are ungated
-wrangler deploy
+npx wrangler login      # once, opens a browser
+./tools/deploy.sh       # everything else
 ```
 
-`wrangler.toml` already carries the free-credit count, the daily spend cap and the
-allowed origin. Check `ALLOWED_ORIGINS` matches where the app is actually served.
+The script checks who you are, verifies the catalogue is in step with the app,
+creates the D1 database and writes its id into `wrangler.toml`, applies the
+migration, tells you whether the API key is set, and deploys. It is safe to re-run:
+it creates what is missing and leaves what exists alone.
 
-### 4. Point the app at it — one line
+**The app and the API deploy together, on one origin.** That is what removes the
+CORS configuration and the hand-wired endpoint — the Worker serves the page and then
+tells it where the API is, so the same build works on the preview URL, on production
+and on localhost with no hostname baked in anywhere.
+
+The one setting that matters is `run_worker_first = true` under `[assets]`. Without
+it Cloudflare serves the static files directly, the Worker never sees the HTML, and
+the feature stays switched off with no error to explain why.
+
+### 4. Point the app at it — nothing to do on Cloudflare
+
+Deployed from the Worker, the page is configured for you. Open the printed URL on
+your phone and the scan button is there.
+
+The line is only needed when the app is hosted somewhere else — GitHub Pages, say —
+and should talk to a Worker on a different origin:
 
 ```html
-<script>window.KLASER_AI_ENDPOINT = 'https://klaser-api.<you>.workers.dev';</script>
+<script>window.KLASER_AI_ENDPOINT = 'https://klaser.<you>.workers.dev';</script>
 ```
 
-Without that line the feature does not exist, which is the default and stays the
-default until you add it.
+Without it the feature does not exist, which is the default for the GitHub Pages copy
+and keeps that copy making no network requests at all.
 
 ### 5. Evidence it works — the long one
 

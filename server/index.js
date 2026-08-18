@@ -9,12 +9,14 @@ import { MemoryStore, D1Store } from './store.js';
 import { createAnalyzer } from './analyze.js';
 import { createAnthropicAdapter } from './adapters/anthropic.js';
 import { createMockAdapter } from './adapters/mock.js';
+import { serveAsset } from './assets.js';
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MEDIA_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const DEFAULT_DAILY_CAP_USD = 25;
 
-export function createApp({ catalogue, env = {}, store, adapter, lookup }) {
+export function createApp({ catalogue, env = {}, store, adapter, lookup, assets }) {
+  assets = assets || env.ASSETS;
   const dailyCap = Number(env.DAILY_SPEND_CAP_USD || DEFAULT_DAILY_CAP_USD);
   const origins = String(env.ALLOWED_ORIGINS || '*').split(',').map(s => s.trim());
 
@@ -119,6 +121,13 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup }) {
         }));
 
         return json({ result: out.result, meta: { ...out.meta, quota } }, 200, headers);
+      }
+
+      /* Anything that is not the API is the app itself. Serving both from one
+         Worker is what removes the CORS configuration and the hand-wired endpoint. */
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        const asset = await serveAsset(req, { assets, endpoint: '' });
+        if (asset && asset.status !== 404) return asset;
       }
 
       return json({ error: { code: 'bad_request', message_he: 'לא נמצא.' } }, 404, headers);

@@ -7,7 +7,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createApp } from './index.js';
@@ -16,8 +16,32 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const catalogue = JSON.parse(readFileSync(join(ROOT, 'contracts', 'catalogue.json'), 'utf8'));
 
 const PORT = Number(process.env.PORT || 8787);
+
+/* The Workers static-assets binding, backed by the repository. Same interface, so
+   the Worker code path is identical in dev and in production. */
+const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.css':'text/css',
+  '.json':'application/json', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png',
+  '.webp':'image/webp', '.mp4':'video/mp4', '.svg':'image/svg+xml', '.ico':'image/x-icon' };
+
+const assets = {
+  async fetch(req) {
+    let p = decodeURIComponent(new URL(req.url).pathname);
+    if (p === '/') p = '/index.html';
+    if (p.includes('..')) return new Response('no', { status: 400 });
+    const file = join(ROOT, p);
+    try {
+      if (!statSync(file).isFile()) return new Response('not found', { status: 404 });
+    } catch { return new Response('not found', { status: 404 }); }
+    const ext = p.slice(p.lastIndexOf('.'));
+    return new Response(readFileSync(file), {
+      headers: { 'content-type': TYPES[ext] || 'application/octet-stream' }
+    });
+  }
+};
+
 const app = createApp({
   catalogue,
+  assets,
   env: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
     FREE_CREDITS: process.env.FREE_CREDITS || '10',

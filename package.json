@@ -6,6 +6,8 @@
     "catalogue": "node tools/extract-catalogue.mjs",
     "catalogue:check": "node tools/extract-catalogue.mjs --check",
     "dev": "node server/dev.js",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "deploy": "./tools/deploy.sh",
+    "probe": "node tools/probe-live.mjs"
   }
 }

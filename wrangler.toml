@@ -1,21 +1,34 @@
-name = "klaser-api"
+name = "klaser"
 main = "server/index.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# No R2, no KV for documents — there is nowhere to put one. D1 holds a credit
+# The app and the API ship from one Worker on one origin. That is what removes the
+# CORS configuration and the hand-wired endpoint: the page is served by the same
+# thing it talks to, and learns the endpoint from the page it arrived in.
+#
+# run_worker_first matters. Without it Cloudflare serves the static files directly
+# and the Worker never sees the HTML, so the endpoint is never injected and the
+# feature stays switched off.
+[assets]
+directory = "./"
+binding = "ASSETS"
+run_worker_first = true
+
+# No R2 and no KV for documents — there is nowhere to put one. D1 holds a credit
 # counter and a daily spend total, and nothing else.
 [[d1_databases]]
 binding = "DB"
 database_name = "klaser"
 database_id = "REPLACE_ME"
+migrations_dir = "migrations"
 
 [vars]
 FREE_CREDITS = "10"
 DAILY_SPEND_CAP_USD = "25"
-ALLOWED_ORIGINS = "https://shayh22.github.io"
+ALLOWED_ORIGINS = "*"
 KILL_SWITCH = ""
 
 # Secrets, set with `wrangler secret put`:
-#   ANTHROPIC_API_KEY
-#   TURNSTILE_SECRET
+#   ANTHROPIC_API_KEY   — required for real analysis; without it the mock answers
+#   TURNSTILE_SECRET    — optional; without it token issuance is ungated
