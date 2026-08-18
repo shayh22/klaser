@@ -17,10 +17,28 @@ WRANGLER="npx --yes wrangler@latest"
 say "1/6  Who are we deploying as?"
 $WRANGLER whoami || { echo "Not logged in. Run: npx wrangler login"; exit 1; }
 
-say "2/6  Checking the catalogue is in step with the app"
+say "2/7  Is this name already taken?"
+NAME="$(grep -E '^name *=' wrangler.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+# `wrangler deploy` replaces a Worker of the same name without asking. On an
+# account that already runs something else, that is the one mistake here that
+# cannot be undone from this script, so it is checked before anything happens.
+if $WRANGLER deployments list --name "$NAME" >/dev/null 2>&1; then
+  echo "A Worker named '$NAME' already exists on this account."
+  echo "Deploying would REPLACE it."
+  echo
+  read -r -p "Is '$NAME' the Klaser worker, and should it be replaced? [y/N] " reply
+  case "$reply" in
+    [yY]*) echo "Continuing." ;;
+    *) echo "Stopping. Change 'name' in wrangler.toml and run again."; exit 1 ;;
+  esac
+else
+  echo "'$NAME' is free."
+fi
+
+say "3/7  Checking the catalogue is in step with the app"
 node tools/extract-catalogue.mjs --check
 
-say "3/6  Database"
+say "4/7  Database"
 if grep -q 'database_id = "REPLACE_ME"' wrangler.toml; then
   echo "Creating D1 database 'klaser'…"
   OUT="$($WRANGLER d1 create klaser 2>&1 || true)"
@@ -41,10 +59,10 @@ else
   echo "database_id already set — leaving it alone."
 fi
 
-say "4/6  Schema"
+say "5/7  Schema"
 $WRANGLER d1 migrations apply klaser --remote
 
-say "5/6  Secrets"
+say "6/7  Secrets"
 if $WRANGLER secret list 2>/dev/null | grep -q ANTHROPIC_API_KEY; then
   echo "ANTHROPIC_API_KEY is already set."
 else
@@ -54,7 +72,7 @@ else
   echo "    npx wrangler secret put ANTHROPIC_API_KEY"
 fi
 
-say "6/6  Deploy"
+say "7/7  Deploy"
 $WRANGLER deploy
 
 cat <<'DONE'
