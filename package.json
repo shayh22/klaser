@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node tools/extract-catalogue.mjs --check && node tools/build-dist.mjs",
     "catalogue": "node tools/extract-catalogue.mjs",
     "catalogue:check": "node tools/extract-catalogue.mjs --check",
     "dev": "node server/dev.js",

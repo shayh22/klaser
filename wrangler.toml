@@ -10,18 +10,25 @@ compatibility_flags = ["nodejs_compat"]
 # run_worker_first matters. Without it Cloudflare serves the static files directly
 # and the Worker never sees the HTML, so the endpoint is never injected and the
 # feature stays switched off.
+# `npm run build` assembles dist/ — the page plus only the assets it references.
+# Pointing this at the repository root published the tests and docs too.
 [assets]
-directory = "./"
+directory = "./dist"
 binding = "ASSETS"
 run_worker_first = true
 
 # No R2 and no KV for documents — there is nowhere to put one. D1 holds a credit
 # counter and a daily spend total, and nothing else.
-[[d1_databases]]
-binding = "DB"
-database_name = "klaser"
-database_id = "REPLACE_ME"
-migrations_dir = "migrations"
+#
+# Left commented so the first deploy succeeds with no setup: without a DB binding
+# the service keeps its credit counter in memory, which resets when the Worker
+# restarts. That is fine for trying it and wrong for real use. Uncomment, paste the
+# id from the dashboard, and redeploy — see docs/DEPLOY-FROM-PHONE.md.
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "klaser"
+# database_id = "PASTE_THE_ID_FROM_THE_DASHBOARD"
+# migrations_dir = "migrations"
 
 [vars]
 FREE_CREDITS = "10"
