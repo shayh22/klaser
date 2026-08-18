@@ -62,7 +62,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         schema: IDENTIFY_SCHEMA
       });
     } catch (e) {
-      throw new ApiError('upstream_error', { detail: e.message });
+      throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
     track(ident, 'claude-haiku-4-5');
 
@@ -108,7 +108,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         schema
       });
     } catch (e) {
-      throw new ApiError('upstream_error', { detail: e.message });
+      throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
     track(read, 'claude-sonnet-5');
 

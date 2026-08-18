@@ -16,10 +16,17 @@ export const CODES = {
 };
 
 export class ApiError extends Error {
-  constructor(code, { retryAfter = null, detail = '' } = {}) {
+  constructor(code, { retryAfter = null, detail = '', cause = null } = {}) {
     super(code + (detail ? `: ${detail}` : ''));
     this.code = CODES[code] ? code : 'internal';
     this.retryAfter = retryAfter;
+    /* Kept for logs and for tools/probe-live.mjs. It never reaches the client —
+       errorResponse() sends only the code and message_he — but when the upstream
+       rejects a request, its own words are the only thing that says which field
+       was wrong. Dropping them makes the failure undiagnosable. */
+    this.cause = cause;
+    this.upstreamBody = cause && cause.body ? cause.body : null;
+    this.upstreamStatus = cause && cause.status ? cause.status : null;
   }
 }
 

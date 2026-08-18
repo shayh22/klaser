@@ -59,7 +59,13 @@ ok(r4.meta.form_signature===s1,'signature stable across different reference numb
 // upstream failure
 const r5 = await A(B('KLASER-MOCK:'+JSON.stringify({fail:true})));
 ok(r5.status===503,'upstream failure -> 503');
-ok((await r5.json()).error.message_he.length>0,'error carries hebrew message');
+const e5 = (await r5.json()).error;
+ok(e5.message_he.length>0,'error carries hebrew message');
+// the upstream body is kept server-side for logs and the live probe; it must not
+// travel to the browser, where it would expose provider internals
+ok(JSON.stringify(Object.keys(e5).sort())===JSON.stringify(['code','message_he','retry_after']),
+   'error response exposes only code, message_he, retry_after');
+ok(!JSON.stringify(e5).includes('mock upstream'),'upstream text never reaches the client');
 
 // quota exhaustion
 const t2 = await (await call('/v1/token',{method:'POST',body:'{}'})).json();
