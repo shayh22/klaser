@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**621 assertions, 0 failures (`node tests/run.mjs`).**
+**625 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -308,7 +308,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 621 assertions
+node tests/run.mjs                                # 625 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway

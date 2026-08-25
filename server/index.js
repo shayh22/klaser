@@ -70,7 +70,23 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
           accepts_analysis: a.ok,
           reason: a.reason,
           catalogue_version: catalogue.version,
-          provider: adapter.name
+          provider: adapter.name,
+          /* Why that provider, not just which one.
+             "provider: mock" on a deployment that has a key configured is the most
+             confusing state this service has: it looks identical whether the secret
+             was never saved, was saved as a plain variable and then overwritten by
+             the [vars] block on the next deploy, was put in the build-time
+             environment where the runtime cannot see it, or whether AI_PROVIDER
+             overrode everything. Each has a different fix and none is visible from
+             the outside.
+             Presence only — a boolean about configuration, never a value, and
+             nothing here that `provider` did not already imply. */
+          config: {
+            openrouter_key: !!env.OPENROUTER_API_KEY,
+            anthropic_key: !!env.ANTHROPIC_API_KEY,
+            ai_provider: String(env.AI_PROVIDER || '') || null,
+            db: !!env.DB
+          }
         }, 200, headers);
       }
 
