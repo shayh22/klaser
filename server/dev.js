@@ -2,8 +2,9 @@
 /* Local dev server. Runs the exact Worker handler on Node's http server, so what is
  * tested here is the code that deploys, not a parallel implementation.
  *
- *   node server/dev.js                 mock adapter, port 8787
- *   ANTHROPIC_API_KEY=sk-… node server/dev.js    real models
+ *   node server/dev.js                              mock adapter, port 8787
+ *   OPENROUTER_API_KEY=sk-or-… node server/dev.js    real models via OpenRouter
+ *   ANTHROPIC_API_KEY=sk-ant-… node server/dev.js    real models direct
  */
 
 import { createServer } from 'node:http';
@@ -42,8 +43,20 @@ const assets = {
 const app = createApp({
   catalogue,
   assets,
+  /* Passed through by name rather than spreading process.env: the Worker only ever
+     sees the vars it is configured with, and dev should not accidentally hand the
+     app something production would not have. */
   env: {
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+    AI_PROVIDER: process.env.AI_PROVIDER || '',
+    OPENROUTER_MODEL_IDENTIFY: process.env.OPENROUTER_MODEL_IDENTIFY || '',
+    OPENROUTER_MODEL_READ: process.env.OPENROUTER_MODEL_READ || '',
+    OPENROUTER_MODEL_ESCALATE: process.env.OPENROUTER_MODEL_ESCALATE || '',
+    OPENROUTER_PDF_ENGINE: process.env.OPENROUTER_PDF_ENGINE || '',
+    OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL || '',
+    OPENROUTER_ZDR: process.env.OPENROUTER_ZDR ?? '1',
+    OPENROUTER_DATA_COLLECTION: process.env.OPENROUTER_DATA_COLLECTION || 'deny',
     FREE_CREDITS: process.env.FREE_CREDITS || '10',
     DAILY_SPEND_CAP_USD: process.env.DAILY_SPEND_CAP_USD || '25',
     KILL_SWITCH: process.env.KILL_SWITCH || '',
@@ -69,7 +82,10 @@ export function nodeAdapter(app) {
 
 if (process.argv[1] && process.argv[1].endsWith('dev.js')) {
   createServer(nodeAdapter(app)).listen(PORT, () => {
-    const mode = process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'mock (no API key set)';
+    const mode = process.env.AI_PROVIDER
+      || (process.env.OPENROUTER_API_KEY ? 'openrouter'
+        : process.env.ANTHROPIC_API_KEY ? 'anthropic'
+        : 'mock (no API key set)');
     console.log(`klaser server on http://localhost:${PORT} — provider: ${mode}`);
   });
 }

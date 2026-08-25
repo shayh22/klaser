@@ -1,4 +1,6 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
+/* the repository this file is in, not the directory it was first written in */
+const ROOT = new URL('..', import.meta.url).pathname;
 async function newCase(page){
   // the toolbar button is hidden while the list is empty; the empty card owns the action
   if(await page.isVisible('#emptyNew')) await page.click('#emptyNew');
@@ -8,7 +10,7 @@ const errors=[]; const browser=await chromium.launch();
 const ctx=await browser.newContext({acceptDownloads:true}); const page=await ctx.newPage();
 page.on('pageerror',e=>errors.push('PAGEERROR: '+e.message));
 const ok=(l,c)=>console.log((c?'PASS  ':'FAIL  ')+l);
-await page.goto('file:///workspace/klaser-test/index.html');
+await page.goto('file://' + ROOT + 'index.html');
 await page.waitForTimeout(300);
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAcElEQVR4nO3QMQ0AAAjAMPBvGjyIQU'+
  'sSCz0dAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'+

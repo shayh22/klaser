@@ -63,13 +63,19 @@ say "5/7  Schema"
 $WRANGLER d1 migrations apply klaser --remote
 
 say "6/7  Secrets"
-if $WRANGLER secret list 2>/dev/null | grep -q ANTHROPIC_API_KEY; then
+# Either key switches real analysis on; OpenRouter wins if both are set. Neither is
+# an error — the service answers from the mock, which is a fine first deploy.
+SECRETS=$($WRANGLER secret list 2>/dev/null || true)
+if echo "$SECRETS" | grep -q OPENROUTER_API_KEY; then
+  echo "OPENROUTER_API_KEY is already set."
+elif echo "$SECRETS" | grep -q ANTHROPIC_API_KEY; then
   echo "ANTHROPIC_API_KEY is already set."
 else
-  echo "ANTHROPIC_API_KEY is not set."
-  echo "Without it the service answers from the mock — useful for a first deploy,"
-  echo "but not real analysis. Set it with:"
-  echo "    npx wrangler secret put ANTHROPIC_API_KEY"
+  echo "No provider key is set."
+  echo "Without one the service answers from the mock — useful for a first deploy,"
+  echo "but not real analysis. Set one with:"
+  echo "    npx wrangler secret put OPENROUTER_API_KEY"
+  echo "    npx wrangler secret put ANTHROPIC_API_KEY   # or talk to Anthropic direct"
 fi
 
 say "7/7  Deploy"

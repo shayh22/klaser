@@ -2,7 +2,7 @@
    phone camera is unreachable. This drives the demo the way a person on a phone
    does — a real tap, no programmatic file input — so a dead-end button fails here
    instead of in someone's hand. */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import { execFileSync } from 'node:child_process';
 const ROOT = new URL('..', import.meta.url).pathname;
 execFileSync('node', [ROOT + 'tools/build-demo.mjs', ROOT + 'demo-preview.html']);

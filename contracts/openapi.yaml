@@ -148,6 +148,40 @@ paths:
                     scope:
                       type: string
                       enum: [single_document]
+                extras:
+                  type: object
+                  description: |
+                    Names this user has added for themselves — bodies and documents the
+                    shared catalogue does not carry. Sent so the model can recognise
+                    next month what they named this month, and so those keys are legal
+                    answers in the schema.
+
+                    Keys and Hebrew names only: no cases, no dates, nothing about what
+                    the user is doing with them. Bounded and scrubbed server-side before
+                    it goes near a prompt (60 bodies, 250 documents, 80 characters a
+                    name, identifier-shaped keys), because this text is pasted into one.
+                    Stored nowhere — it arrives with the request and leaves with the
+                    response. It is deliberately NOT folded into the cached catalogue
+                    block, so one user saving a name never costs everyone the cache.
+                  properties:
+                    agencies:
+                      type: array
+                      maxItems: 60
+                      items:
+                        type: object
+                        required: [key, he]
+                        properties:
+                          key: { type: string, maxLength: 40 }
+                          he:  { type: string, maxLength: 80 }
+                    docs:
+                      type: array
+                      maxItems: 250
+                      items:
+                        type: object
+                        required: [key, he]
+                        properties:
+                          key: { type: string, maxLength: 40 }
+                          he:  { type: string, maxLength: 80 }
                 hint:
                   type: object
                   description: Optional. Narrows the answer when the user analysed from inside an open case.
@@ -245,6 +279,24 @@ components:
         escalated:
           type: boolean
           default: false
+        extra_agencies:
+          type: integer
+          default: 0
+          description: How many bodies of their own this user sent. A count, never the names.
+        extra_docs:
+          type: integer
+          default: 0
+          description: How many document names of their own this user sent.
+        dropped:
+          type: integer
+          default: 0
+          description: |
+            How many parts of the model's answer the catalogue check refused — an
+            invented document key, a document with nothing quoted behind it, a
+            deadline that was not a date. Zero is the normal case. It counts the
+            answer's shape, never its content, and it is the number the evaluation
+            set exists to watch: a provider that starts inventing keys shows up here
+            before it shows up in anybody's case file.
         latency_ms: { type: integer }
         input_tokens: { type: integer }
         output_tokens: { type: integer }

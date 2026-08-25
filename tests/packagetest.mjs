@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 const HERE = new URL('.', import.meta.url).pathname;
 const ROOT = new URL('..', import.meta.url).pathname;
 execFileSync('node', [ROOT + 'tools/build-demo.mjs', ROOT + 'demo-preview.html']);
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport:{width:390,height:844}, isMobile:true, hasTouch:true });
 const page = await ctx.newPage();

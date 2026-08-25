@@ -1,7 +1,7 @@
 /* End-to-end MVP: scan a letter -> checklist -> collect -> fill the form.
    Runs the real Worker handler and the real page. Nothing is stubbed inside the
    app; only the model provider is the mock adapter. */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
@@ -82,16 +82,27 @@ await page.waitForFunction(() =>
   document.querySelector('#aiBody')?.textContent.includes('בדקו לפני'), null, { timeout: 8000 });
 
 const body = await page.textContent('#aiBody');
+/* This suite runs against the mock adapter, so the review must say so. A service
+   with no provider key answers from the same fixtures the tests use — confidently,
+   and about a letter that is not the user's. Saying nothing is how somebody tests a
+   deployment, sees a plausible checklist, and concludes it works. */
+ok('a mock-backed service says its answer is canned',
+  body.includes('תשובה קבועה מראש'));
 ok('review lists the required documents', body.includes('תעודת זהות') && body.includes('אישור ניהול חשבון'));
 ok('review quotes the evidence from the letter', body.includes('צילום תעודת זהות של שני ההורים'));
-ok('review flags the unrecognised document', body.includes('לא מזוהה'));
+// A document the shared list does not carry is shown by the name the letter used,
+// as an ordinary item. It used to be badged "unrecognised — verify with the agency";
+// the vocabulary is open now and that framing was never right.
+ok('a document with no catalogue key is offered by its hebrew name',
+  body.includes('תעודת לידה של הילד שנולד בחו״ל'));
+ok('and is not badged as a problem', !body.includes('לא מזוהה'));
 ok('review shows the reference number', body.includes('304-882-1177'));
 ok('review shows remaining credits', /9/.test(body));
 ok('5 items offered', (await page.$$('#aiBody [data-pick]')).length === 5);
 ok('nothing written to a case yet', (await page.$$('.case')).length === 0);
 
-/* untick the unverified extra document */
-await page.uncheck('#aiBody [data-pick="x0"]');
+/* untick the one with no catalogue key — it is the fifth item in the single list */
+await page.uncheck('#aiBody [data-pick="r4"]');
 await page.click('#aiActions button:nth-child(1)');       // add to case
 await page.waitForTimeout(400);
 

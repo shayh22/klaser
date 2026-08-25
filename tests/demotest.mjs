@@ -1,6 +1,6 @@
 /* Demo mode: the whole flow, on a phone-sized screen, with no server and — the
    part that matters — no network request of any kind. */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 const HERE = new URL('.', import.meta.url).pathname;
 const APP = 'http://127.0.0.1:8099/index.html';
 

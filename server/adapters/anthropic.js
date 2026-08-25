@@ -24,6 +24,14 @@ export function costOf(model, usage) {
   return ((fresh + cached * 0.1) * p.in + (usage.output_tokens || 0) * p.out) / 1e6;
 }
 
+/* Which model does what. Named so the pipeline can price a call against the model
+   it actually asked for rather than repeating these strings. */
+export const MODELS = {
+  identify: 'claude-haiku-4-5',
+  read:     'claude-sonnet-5',
+  escalate: 'claude-opus-5'
+};
+
 export function createAnthropicAdapter({ apiKey, fetchImpl = fetch }) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
@@ -88,11 +96,12 @@ export function createAnthropicAdapter({ apiKey, fetchImpl = fetch }) {
 
   return {
     name: 'anthropic',
-    identify: opts => call({ model: 'claude-haiku-4-5', maxTokens: 600, ...opts }),
-    read:     opts => call({ model: 'claude-sonnet-5',  maxTokens: 3000, ...opts }),
+    identify: opts => call({ model: MODELS.identify, maxTokens: 600, ...opts }),
+    read:     opts => call({ model: MODELS.read,     maxTokens: 3000, ...opts }),
     /* Opus 5 thinks by default and thinking shares the max_tokens budget, so the
        escalation needs headroom the other two do not. */
-    escalate: opts => call({ model: 'claude-opus-5',    maxTokens: 8000, ...opts }),
+    escalate: opts => call({ model: MODELS.escalate, maxTokens: 8000, ...opts }),
+    models: MODELS,
     costOf
   };
 }

@@ -15,22 +15,24 @@ const DEFAULT = {
   identify: {
     is_letter: true,
     agency: 'btl',
+    agency_he: 'ביטוח לאומי',
     form_code: 'בל/5020',
     form_title_he: 'בקשה לקצבת ילדים',
     personalised: false
   },
   read: {
     agency: 'btl',
+    agency_he: 'ביטוח לאומי',
     agency_child: null,
     template: 'child_allowance',
+    /* One document with no catalogue key, deliberately: it is the ordinary case now,
+       not the exception, and every test that runs on the mock should see it. */
     required_docs: [
-      { key: 'teudat_zehut', evidence: 'צילום תעודת זהות של שני ההורים', confidence: 0.96 },
-      { key: 'sefach',       evidence: 'ספח תעודת הזהות שבו רשומים הילדים', confidence: 0.93 },
-      { key: 'bank_confirm', evidence: 'אישור ניהול חשבון בנק על שם התובע', confidence: 0.95 },
-      { key: 'claim_form',   evidence: 'טופס התביעה המצורף, חתום', confidence: 0.9 }
-    ],
-    extra_docs: [
-      { he: 'תעודת לידה של הילד שנולד בחו״ל', evidence: 'עבור ילד שנולד מחוץ לישראל יש לצרף תעודת לידה מתורגמת', confidence: 0.72 }
+      { key: 'teudat_zehut', he: 'תעודת זהות',        evidence: 'צילום תעודת זהות של שני ההורים', confidence: 0.96 },
+      { key: 'sefach',       he: 'ספח תעודת זהות',    evidence: 'ספח תעודת הזהות שבו רשומים הילדים', confidence: 0.93 },
+      { key: 'bank_confirm', he: 'אישור ניהול חשבון', evidence: 'אישור ניהול חשבון בנק על שם התובע', confidence: 0.95 },
+      { key: 'claim_form',   he: 'טופס תביעה',        evidence: 'טופס התביעה המצורף, חתום', confidence: 0.9 },
+      { key: null, he: 'תעודת לידה של הילד שנולד בחו״ל', evidence: 'עבור ילד שנולד מחוץ לישראל יש לצרף תעודת לידה מתורגמת', confidence: 0.72 }
     ],
     deadline: null,
     letter_date: '2026-08-02',

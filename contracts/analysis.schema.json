@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://klaser.app/contracts/analysis.schema.json",
   "title": "Letter analysis result",
-  "description": "What /v1/analyze returns for one photographed letter. Used verbatim as the model's structured-output schema. Enum members are injected at boot from contracts/catalogue.json — see the $comment on each field for which path supplies them. The schema is never hand-edited to add a key; add it to index.html and regenerate the catalogue.",
+  "description": "What /v1/analyze returns for one photographed letter. Used as the model's structured-output schema. The catalogue supplies the key enums, and it is a hint rather than a gate: a document or body it does not carry is returned by its Hebrew name with key null, and is every bit as valid. Keys buy translation into four languages, nothing else. Enum members are injected per request from contracts/catalogue.json plus whatever vocabulary the user has added for themselves. The schema is never hand-edited to add a key; add it to index.html and regenerate the catalogue.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "agency",
+    "agency_he",
     "template",
     "required_docs",
-    "extra_docs",
     "deadline",
     "reference",
     "confidence",
@@ -25,7 +25,7 @@
         "null"
       ],
       "$comment": "enum := Object.keys(catalogue.agencies). null when the letter names no agency this app knows.",
-      "description": "Which agency sent the letter."
+      "description": "Which body sent the letter, as a catalogue key or a key this user has added. null when neither fits — agency_he then carries the name."
     },
     "agency_child": {
       "type": [
@@ -47,55 +47,34 @@
     "required_docs": {
       "type": "array",
       "uniqueItems": true,
-      "maxItems": 20,
+      "maxItems": 25,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "key",
-          "evidence",
-          "confidence"
-        ],
-        "properties": {
-          "key": {
-            "type": "string",
-            "$comment": "enum := Object.keys(catalogue.docs)."
-          },
-          "evidence": {
-            "type": "string",
-            "maxLength": 200,
-            "description": "The Hebrew phrase in the letter that asks for this document. Quoted, not paraphrased — it is what the user checks the suggestion against."
-          },
-          "confidence": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          }
-        }
-      },
-      "description": "Documents the letter asks for, as catalogue keys. Each already carries four translations and a Hebrew term, so no name is ever generated."
-    },
-    "extra_docs": {
-      "type": "array",
-      "uniqueItems": true,
-      "maxItems": 10,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
           "he",
           "evidence",
           "confidence"
         ],
         "properties": {
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "$comment": "enum := Object.keys(catalogue.docs) + this user's own doc keys + null.",
+            "description": "A catalogue key when one genuinely fits, which buys four translations. null otherwise — and null is a normal answer, not a failure. A wrong key is worse than no key."
+          },
           "he": {
             "type": "string",
             "maxLength": 80,
-            "description": "Hebrew name exactly as the letter writes it. Not translated — the client shows it verbatim and labels it unverified."
+            "description": "The document's name in Hebrew, as the letter writes it. Required even when a key matched, because it is what makes a document without a key usable rather than discarded."
           },
           "evidence": {
             "type": "string",
-            "maxLength": 200
+            "maxLength": 200,
+            "description": "The Hebrew phrase in the letter that asks for this document. Quoted, not paraphrased. This is the field that carries the guarantee: the server drops any document it cannot show a quote for, whatever the document is called. It is what separates a list read off the page from a list guessed from the subject."
           },
           "confidence": {
             "type": "number",
@@ -104,7 +83,7 @@
           }
         }
       },
-      "description": "Requested documents with no catalogue key. Surfaced separately and never silently mixed into required_docs, because these are the ones that can be wrong."
+      "description": "Every document the letter asks for, in one list. There used to be a second array for documents with no catalogue key; the split existed only because those were treated as second-class, and they are not."
     },
     "deadline": {
       "type": [
@@ -207,6 +186,14 @@
           "maxLength": 120
         }
       }
+    },
+    "agency_he": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 80,
+      "description": "The body's name in Hebrew, exactly as it appears on the document. Always filled, including when a key matched — a letter may say סניף חיפה and that is worth showing. When no key matched it is the only thing standing between the user and a case filed under \"other\", and the client offers to save it as a body of their own."
     }
   }
 }

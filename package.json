@@ -9,6 +9,7 @@
     "dev": "node server/dev.js",
     "test": "node tests/run.mjs",
     "deploy": "./tools/deploy.sh",
-    "probe": "node tools/probe-live.mjs"
+    "probe": "node tools/probe-live.mjs",
+    "preflight": "node tools/preflight.mjs"
   }
 }

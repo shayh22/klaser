@@ -474,7 +474,11 @@
   </footer>
 </div>
 
-<input type="file" id="scanInput" accept="image/*,application/pdf" multiple capture="environment" class="sr">
+<!-- No capture="environment" on either. It forces the camera and hides the photo
+     library, and the common case is a document already photographed — often the PDF
+     the agency emailed, which a camera cannot produce at all. It was removed from
+     #letterInput once; it had the same effect here. -->
+<input type="file" id="scanInput" accept="image/*,application/pdf" multiple class="sr">
 <input type="file" id="letterInput" accept="image/*,application/pdf" class="sr">
 
 <div id="printArea" dir="rtl" lang="he"></div>
@@ -650,6 +654,13 @@ const STR = {
   scanBig:{
     he:'הקובץ גדול מדי (מעל 25MB).',fr:'Fichier trop volumineux (plus de 25 Mo).',
     en:'File is too large (over 25MB).',ru:'Файл слишком большой (более 25 МБ).'},
+  /* A different limit from scanBig, and a different reason: keeping a scan is
+     bounded by the browser, sending one for analysis is bounded by the service. */
+  letterBig:{
+    he:'הקובץ גדול מדי לניתוח (מעל 4MB). צלמו שוב, או שלחו עמוד אחד במקום מסמך שלם.',
+    fr:"Fichier trop volumineux pour l'analyse (plus de 4 Mo). Reprenez la photo, ou envoyez une seule page.",
+    en:'File is too large to analyse (over 4MB). Take the photo again, or send a single page instead of a whole document.',
+    ru:'Файл слишком большой для анализа (более 4 МБ). Сфотографируйте заново или отправьте одну страницу.'},
   /* The count sits in parentheses so no language has to agree a noun with it —
      Hebrew and Russian both inflect differently at 1, 2 and 5+. */
   backupScans:{
@@ -759,7 +770,12 @@ const STR = {
     fr:"Vérifiez avant d'ajouter. Chaque élément indique la phrase du courrier dont il provient. Décochez ce qui est faux.",
     en:'Check before adding. Each item shows the sentence in the letter it came from. Untick anything that is wrong.',
     ru:'Проверьте перед добавлением. У каждого пункта указана фраза из письма. Снимите отметку с неверного.'},
-  reviewUnverified:{he:'לא מזוהה — בדקו מול הרשות',fr:'Non reconnu — vérifiez',en:'Unrecognised — verify with the agency',ru:'Не распознано — уточните'},
+  /* Replaces reviewUnverified, which said "unrecognised — verify with the agency"
+     in the tone of a warning. A document the shared list does not carry is not
+     suspicious; it simply has no translation yet, so it shows in the Hebrew the
+     letter used. Only shown when the interface is not in Hebrew, where the
+     difference is visible. */
+  docAsWritten:{he:'כלשון המכתב',fr:'Tel qu\u2019écrit dans le courrier',en:'As written in the letter',ru:'Как указано в письме'},
   reviewAdd:{he:'הוסף לתיק',fr:'Ajouter au dossier',en:'Add to case',ru:'Добавить в дело'},
   reviewNothing:{he:'לא נמצאו מסמכים לאסוף.',fr:'Aucun document à rassembler.',en:'No documents to collect were found.',ru:'Документы для сбора не найдены.'},
   reviewUndo:{he:'בטל את ההוספה',fr:"Annuler l'ajout",en:'Undo that',ru:'Отменить добавление'},
@@ -785,6 +801,16 @@ const STR = {
     en:'We do not have a field map for this form yet. The details below are ready to copy onto the original.',
     ru:'У нас пока нет карты полей для этой формы. Данные ниже готовы к переносу в оригинал.'},
   fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'},
+  /* A deployment wired to no provider key answers from the same Hebrew fixtures the
+     test suite uses — confidently, and about a letter that is not yours. Demo mode
+     has always said so on every screen for exactly that reason; a mock-backed
+     service was saying nothing at all, which is the worse of the two because nobody
+     chose it. */
+  mockBanner:{
+    he:'\u{1F9EA} השירות עונה מתשובה קבועה מראש, לא מקריאה של המסמך שלך. כנראה לא הוגדר מפתח ספק בשרת.',
+    fr:"\u{1F9EA} Le service répond avec une réponse prédéfinie, pas une lecture de votre document. Aucune clé de fournisseur n'est probablement configurée.",
+    en:'\u{1F9EA} The service is answering from a canned fixture, not from reading your document. A provider key is probably not configured on the server.',
+    ru:'\u{1F9EA} Сервис отвечает заготовленным текстом, а не чтением вашего документа. Вероятно, на сервере не задан ключ провайдера.'},
   demoBanner:{
     he:'\u{1F9EA} מצב הדגמה — התשובה קבועה מראש על מכתב לדוגמה, ואינה קריאה אמיתית. אין צורך לצלם, ושום דבר לא נשלח לשום מקום.',
     fr:"\u{1F9EA} Mode démo — réponse prédéfinie sur un courrier d'exemple, pas une vraie lecture. Aucune photo nécessaire, rien n'est envoyé.",
@@ -958,13 +984,16 @@ function load(){
   try{
     const raw = JSON.parse(localStorage.getItem(KEY) || '{}');
     cases = Array.isArray(raw.cases) ? raw.cases : [];
+    if(raw.mine && typeof raw.mine === 'object'){
+      MINE = {agencies:raw.mine.agencies || {}, docs:raw.mine.docs || {}};
+    }
     /* titles saved before titles were derived are frozen in their creation
        language; release the ones that are still just the template name */
     cases.forEach(c => {
       if(!c.title) return;
       const names = [];
       const tpl = c.template && TEMPLATES[c.template];
-      const ag  = AGENCIES[c.agency];
+      const ag  = agencyOf(c.agency);
       LANGS.forEach(l => { if(tpl) names.push(tpl[l.code]); if(ag) names.push(ag[l.code]); });
       if(names.indexOf(c.title) !== -1) c.title = '';
     });
@@ -972,13 +1001,55 @@ function load(){
   }catch(e){ cases = []; }
 }
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify({lang, cases})); }catch(e){}
+  try{ localStorage.setItem(KEY, JSON.stringify({lang, cases, mine:MINE})); }catch(e){}
 }
 
 /* ======================= HELPERS ======================= */
 const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2,10);
+
+/* ---------- names this user added for themselves ----------
+   AGENCIES and DOCS are the shared list: nine bodies and fifteen documents, each
+   translated into four languages. They were never going to cover קרנית, a landlord,
+   a management company, or the fund somebody's employer uses — and a list that
+   refuses everything it has not heard of is useless to exactly the person this app
+   is for.
+   So the shared list stopped being a gate. Anything read off a letter that it does
+   not know is kept by its Hebrew name and saved here, in the same shape, so every
+   renderer treats it identically. It rides along in the backup file, and it is sent
+   with the next scan so the model recognises next month what you named this month.
+   `own:true` is the only difference: it marks what can be edited and deleted. */
+let MINE = {agencies:{}, docs:{}};
+
+const agencyOf = k => (k && (AGENCIES[k] || MINE.agencies[k])) || null;
+const docOf    = k => (k && (DOCS[k] || MINE.docs[k])) || null;
+
+/* Saved once per name, not once per sighting: the same landlord read off four
+   letters is one entry. Matching is on the Hebrew string, because that is the only
+   thing two readings of the same name reliably share. */
+function remember(kind, he){
+  if(!he) return null;
+  const name = String(he).replace(/\s+/g,' ').trim().slice(0,80);
+  if(!name) return null;
+  const shared = kind==='agencies' ? AGENCIES : DOCS;
+  for(const k in shared) if(shared[k].he === name) return k;
+  for(const k in MINE[kind]) if(MINE[kind][k].he === name) return k;
+  const key = 'own_' + uid();
+  MINE[kind][key] = {he:name, own:true};
+  return key;
+}
+function forget(kind, key){
+  if(key && MINE[kind] && MINE[kind][key]) delete MINE[kind][key];
+}
+
+/* What travels with a scan. Keys and Hebrew names only — no cases, no documents,
+   no dates, nothing about what the user is actually doing. */
+function myVocabulary(){
+  const pack = kind => Object.entries(MINE[kind]).map(([key,v]) => ({key, he:v.he}));
+  const agencies = pack('agencies'), docs = pack('docs');
+  return (agencies.length || docs.length) ? {agencies, docs} : undefined;
+}
 
 function t(key, vars){
   let s = (STR[key] && (STR[key][lang] || STR[key].en)) || key;
@@ -996,7 +1067,8 @@ function nameOf(obj){ return obj ? (obj[lang] || obj.en || obj.he) : ''; }
 function autoTitle(template, agency){
   const tpl = template && TEMPLATES[template];
   if(tpl) return nameOf(tpl);
-  return AGENCIES[agency] ? nameOf(AGENCIES[agency]) : '';
+  const ag = agencyOf(agency);
+  return ag ? nameOf(ag) : '';
 }
 function caseTitle(c){ return c.title || autoTitle(c.template, c.agency); }
 
@@ -1180,7 +1252,7 @@ function renderCases(){
     return;
   }
   $('#caseList').innerHTML = list.map(c => {
-    const ag   = AGENCIES[c.agency];
+    const ag   = agencyOf(c.agency);
     const st   = STATUSES.find(s=>s.key===c.status) || STATUSES[0];
     const done = c.docs.filter(d=>d.done).length;
     const pct  = c.docs.length ? Math.round(done/c.docs.length*100) : 0;
@@ -1205,7 +1277,7 @@ function renderCases(){
         <div class="sec-label">${esc(t('secDocs'))}</div>
         <div class="docs">
           ${c.docs.length ? c.docs.map(d => {
-            const ref = d.key ? DOCS[d.key] : null;
+            const ref = docOf(d.key);
             const label = ref ? nameOf(ref) : d.text;
             const scans = d.scans || [];
             return `<div class="doc-wrap">
@@ -1349,8 +1421,12 @@ function render(){
 function fillSelects(){
   $('#fTemplate').innerHTML = `<option value="">${esc(t('custom'))}</option>` +
     Object.keys(TEMPLATES).map(k=>`<option value="${k}">${esc(nameOf(TEMPLATES[k]))}</option>`).join('');
-  $('#fAgency').innerHTML = Object.keys(AGENCIES)
-    .map(k=>`<option value="${k}">${esc(nameOf(AGENCIES[k]))}${AGENCIES[k].he && lang!=='he' ? ' — '+AGENCIES[k].he : ''}</option>`).join('');
+  /* The shared bodies first, then this user's own — a list that cannot name your
+     landlord is a list you stop using. */
+  const agencyOption = k => { const a = agencyOf(k); return a
+    ? `<option value="${k}">${esc(nameOf(a))}${a.he && lang!=='he' ? ' — '+a.he : ''}</option>` : ''; };
+  $('#fAgency').innerHTML = Object.keys(AGENCIES).map(agencyOption).join('')
+    + Object.keys(MINE.agencies).map(agencyOption).join('');
   $('#fStatus').innerHTML = STATUSES
     .map(s=>`<option value="${s.key}">${esc(nameOf(s))}</option>`).join('');
 }
@@ -1772,15 +1848,13 @@ const AI = {
   demoResponse(){
     return {
       result: {
-        agency:'btl', agency_child:null, template:'child_allowance',
+        agency:'btl', agency_he:'ביטוח לאומי', agency_child:null, template:'child_allowance',
         required_docs:[
-          {key:'teudat_zehut', evidence:'צילום תעודת זהות של שני ההורים', confidence:0.96},
-          {key:'sefach',       evidence:'ספח תעודת הזהות שבו רשומים הילדים', confidence:0.93},
-          {key:'bank_confirm', evidence:'אישור ניהול חשבון בנק על שם התובע', confidence:0.95},
-          {key:'claim_form',   evidence:'טופס התביעה המצורף, חתום', confidence:0.9}
-        ],
-        extra_docs:[
-          {he:'תעודת לידה של הילד שנולד בחו״ל', evidence:'עבור ילד שנולד מחוץ לישראל יש לצרף תעודת לידה מתורגמת', confidence:0.72}
+          {key:'teudat_zehut', he:'תעודת זהות',        evidence:'צילום תעודת זהות של שני ההורים', confidence:0.96},
+          {key:'sefach',       he:'ספח תעודת זהות',    evidence:'ספח תעודת הזהות שבו רשומים הילדים', confidence:0.93},
+          {key:'bank_confirm', he:'אישור ניהול חשבון', evidence:'אישור ניהול חשבון בנק על שם התובע', confidence:0.95},
+          {key:'claim_form',   he:'טופס תביעה',        evidence:'טופס התביעה המצורף, חתום', confidence:0.9},
+          {key:null, he:'תעודת לידה של הילד שנולד בחו״ל', evidence:'עבור ילד שנולד מחוץ לישראל יש לצרף תעודת לידה מתורגמת', confidence:0.72}
         ],
         deadline:null, letter_date:'2026-08-02', reference:'304-882-1177',
         form_code:'בל/5020', form_title_he:'בקשה לקצבת ילדים',
@@ -1845,7 +1919,11 @@ const AI = {
         /* scope is fixed: the server rejects anything else, so a bug here cannot
            turn one document into a standing permission */
         consent: {granted_at:new Date().toISOString(), scope:'single_document'},
-        hint: hint || undefined
+        hint: hint || undefined,
+        /* Names only — the bodies and documents this user has saved. No cases, no
+           dates, nothing about what they are doing with them. It is what makes the
+           second letter from the same landlord recognised rather than re-typed. */
+        extras: myVocabulary()
       })
     });
     const data = await r.json().catch(()=>({}));
@@ -1866,8 +1944,12 @@ const AI = {
 /* ---------- the modal used for consent, progress and review ---------- */
 function aiSheet(title, bodyHTML, actions){
   $('#aiTitle').textContent = title;
+  /* Whichever of the two applies. Both mean "this answer was not read off your
+     document", which is the one thing the user must not have to guess at. */
+  const canned = AI.demo ? t('demoBanner')
+               : (AI.health && AI.health.provider === 'mock') ? t('mockBanner') : '';
   $('#aiBody').innerHTML =
-    (AI.demo ? `<div class="badge problem" style="display:block;margin-bottom:9px;white-space:normal;line-height:1.45" dir="auto">${esc(t('demoBanner'))}</div>` : '')
+    (canned ? `<div class="badge problem" style="display:block;margin-bottom:9px;white-space:normal;line-height:1.45" dir="auto">${esc(canned)}</div>` : '')
     + bodyHTML;
   const bar = $('#aiActions');
   bar.innerHTML = '';
@@ -1905,23 +1987,28 @@ function showReview(data, targetCaseId){
   }
 
   const req = res.required_docs || [];
-  const extra = res.extra_docs || [];
-  if(!req.length && !extra.length){
+  if(!req.length){
     aiSheet(t('reviewTitle'), `<p dir="auto">${esc(t('reviewNothing'))}</p>`,
       [{label:t('scanClose'), primary:true, on:aiClose}]);
     return;
   }
 
-  const ag = res.agency ? AGENCIES[res.agency] : null;
+  /* A body we have a translation for, or the name the letter used. Both are real
+     answers; only one of them renders in four languages. */
+  const ag = agencyOf(res.agency) || (res.agency_he ? {he:res.agency_he} : null);
   const free = data.meta && data.meta.credits_charged === 0;
   const left = data.meta && data.meta.quota ? data.meta.quota.remaining : null;
 
-  const row = (id, label, chip, evidence, unverified) => `
+  /* `asWritten` is not a warning. A document the shared list does not carry is an
+     ordinary document — it just has no translation, so it shows in the Hebrew the
+     letter used. Saying so is only worth the space when the interface is not in
+     Hebrew, and it used to be styled as a problem, which it never was. */
+  const row = (id, label, chip, evidence, asWritten) => `
     <label class="doc" style="align-items:flex-start">
       <input type="checkbox" data-pick="${id}" checked>
       <span class="doc-text" style="display:block">
         <span class="lbl" dir="auto">${esc(label)}</span>${chip}
-        ${unverified?`<span class="badge problem" style="margin-inline-start:6px">${esc(t('reviewUnverified'))}</span>`:''}
+        ${asWritten?`<span class="badge" style="margin-inline-start:6px">${esc(t('docAsWritten'))}</span>`:''}
         ${evidence?`<span style="display:block;font-size:12px;color:var(--ink-soft);margin-top:3px" dir="auto">\u{201C}${esc(evidence)}\u{201D}</span>`:''}
       </span>
     </label>`;
@@ -1936,8 +2023,11 @@ function showReview(data, targetCaseId){
     ${meta.length?`<div class="case-meta" style="margin-bottom:8px">${meta.join(' · ')}</div>`:''}
     ${free?`<div class="badge done" style="margin-bottom:8px">${esc(t('freeHit'))}</div>`:''}
     <div class="docs">
-      ${req.map((d,i)=>row('r'+i, nameOf(DOCS[d.key])||d.key, heChip(DOCS[d.key]), d.evidence, false)).join('')}
-      ${extra.map((d,i)=>row('x'+i, d.he, '', d.evidence, true)).join('')}
+      ${req.map((d,i)=>{
+        const ref = docOf(d.key);
+        return row('r'+i, ref ? nameOf(ref) : d.he, ref ? heChip(ref) : '',
+                   d.evidence, !ref && lang!=='he');
+      }).join('')}
     </div>
     ${left!==null?`<div style="font-size:12px;color:var(--ink-faint);margin-top:10px">${esc(t('creditsLeft',{n:left}))}</div>`:''}
   `, [
@@ -1951,8 +2041,27 @@ function showReview(data, targetCaseId){
 
 function applyAnalysis(res, picked, targetCaseId){
   const docs = [];
-  (res.required_docs||[]).forEach((d,i)=>{ if(picked.includes('r'+i)) docs.push({id:uid(), key:d.key, done:false}); });
-  (res.extra_docs||[]).forEach((d,i)=>{ if(picked.includes('x'+i)) docs.push({id:uid(), text:d.he, done:false}); });
+  /* Ticking a document the shared list does not carry is the moment it becomes
+     yours: it is saved under your own key, so it renders the same as any other, is
+     picked up by the next backup, and goes out with the next scan for the model to
+     recognise. Not ticking it saves nothing — the decision is the tick. */
+  const learned = {agencies:[], docs:[]};
+  (res.required_docs||[]).forEach((d,i)=>{
+    if(!picked.includes('r'+i)) return;
+    let key = docOf(d.key) ? d.key : null;
+    if(!key && d.he){ key = remember('docs', d.he); if(MINE.docs[key]) learned.docs.push(key); }
+    if(key) docs.push({id:uid(), key, done:false});
+    else if(d.he) docs.push({id:uid(), text:d.he, done:false});
+  });
+
+  /* Same for the body that sent the letter. קרנית is not one of the nine and never
+     will be for most people — but it is real, and filing it under "other" loses the
+     only thing the letter told us about who is asking. */
+  let agencyKey = agencyOf(res.agency) ? res.agency : null;
+  if(!agencyKey && res.agency_he){
+    agencyKey = remember('agencies', res.agency_he);
+    if(MINE.agencies[agencyKey]) learned.agencies.push(agencyKey);
+  }
 
   const form = res.form_to_fill && res.form_to_fill.where !== 'none'
     ? {code:res.form_to_fill.form_code || res.form_code || null,
@@ -1962,15 +2071,22 @@ function applyAnalysis(res, picked, targetCaseId){
 
   let c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
   if(c){
-    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:false, prevForm:c.form||null};
+    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:false, prevForm:c.form||null,
+               prevRef:c.ref||'', prevDeadline:c.deadline||'', learned};
     c.docs.push(...docs);
     if(form) c.form = form;
-    if(res.ref && !c.ref) c.ref = res.reference;
+    /* The אסמכתא and the deadline are the two things only this letter carries, and
+       they were being dropped: the test read `res.ref`, a field that has never
+       existed — the schema calls it `reference` — so the condition was always false.
+       Filled only when the case has none, because a number the user typed themselves
+       beats one read off a photograph. */
+    if(res.reference && !c.ref) c.ref = res.reference;
+    if(res.deadline && !c.deadline) c.deadline = res.deadline;
   }else{
     c = {
       id: uid(),
       template: res.template || null,
-      agency: res.agency || 'other',
+      agency: agencyKey || 'other',
       title: '',
       status: docs.length ? 'collecting' : 'todo',
       ref: res.reference || '',
@@ -1980,7 +2096,7 @@ function applyAnalysis(res, picked, targetCaseId){
       form: form || null
     };
     cases.unshift(c);
-    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:true};
+    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:true, learned};
   }
   save(); aiClose(); render();
 
@@ -1992,6 +2108,11 @@ function applyAnalysis(res, picked, targetCaseId){
 
 function undoAdd(){
   if(!lastAdd) return;
+  /* Undo has to reach the vocabulary too, or one tap of "undo that" leaves behind a
+     landlord you never agreed to save. */
+  const learned = lastAdd.learned || {agencies:[], docs:[]};
+  learned.docs.forEach(k => forget('docs', k));
+  learned.agencies.forEach(k => forget('agencies', k));
   if(lastAdd.created){
     cases = cases.filter(x => x.id !== lastAdd.caseId);
   }else{
@@ -1999,6 +2120,8 @@ function undoAdd(){
     if(c){
       c.docs = c.docs.filter(d => !lastAdd.docIds.includes(d.id));
       c.form = lastAdd.prevForm;
+      c.ref = lastAdd.prevRef;
+      c.deadline = lastAdd.prevDeadline;
     }
   }
   lastAdd = null;
@@ -2016,6 +2139,17 @@ async function runLetterScan(file, targetCaseId){
        unreachable without an explicit permission grant, and gating the demo on a
        file that never arrives leaves the button doing nothing at all. */
     const blob = (AI.demo && !file) ? null : await compress(file);
+    /* Checked here rather than left to the server's 413. compress() only shrinks
+       images — a PDF passes through untouched, and a scanned multi-page one from an
+       agency is routinely several megabytes. Without this the phone uploads all of
+       it over mobile data and is then told, in Hebrew, that it was too big. The
+       limit mirrors MAX_IMAGE_BYTES in server/index.js; base64 inflates by 4/3,
+       which is the server's problem, not the number the user is shown. */
+    if(blob && blob.size > 4*1024*1024){
+      aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('letterBig'))}</p>`,
+        [{label:t('scanClose'), primary:true, on:aiClose}]);
+      return;
+    }
     const hint = (()=> {
       const c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
       return c ? {agency:c.agency||null, template:c.template||null} : null;
@@ -2150,7 +2284,7 @@ $('#fillPrintBtn').addEventListener('click', () => {
   const map = c.form && c.form.code ? FORMS[c.form.code] : null;
   const fields = map ? map.fields : [];
   const title = (c.form && c.form.title_he) || (map && map.he) || caseTitle(c);
-  const ag = AGENCIES[c.agency];
+  const ag = agencyOf(c.agency);
 
   const area = document.getElementById('printArea');
   area.innerHTML = `

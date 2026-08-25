@@ -23,9 +23,9 @@ const fakeFetch = async (url, opts) => {
       content: [{ type: 'text', text: JSON.stringify(
         sent.length === 1
           ? { is_letter: true, agency: 'btl', form_code: 'בל/5020', form_title_he: 'בקשה לקצבת ילדים', personalised: false }
-          : { agency: 'btl', agency_child: null, template: 'child_allowance',
-              required_docs: [{ key: 'teudat_zehut', evidence: 'צילום תעודת זהות', confidence: 0.9 }],
-              extra_docs: [], deadline: null, letter_date: null, reference: null,
+          : { agency: 'btl', agency_he: 'ביטוח לאומי', agency_child: null, template: 'child_allowance',
+              required_docs: [{ key: 'teudat_zehut', he: 'תעודת זהות', evidence: 'צילום תעודת זהות', confidence: 0.9 }],
+              deadline: null, letter_date: null, reference: null,
               form_code: 'בל/5020', form_title_he: 'בקשה לקצבת ילדים',
               form_to_fill: { where: 'self', form_code: null, form_title_he: null },
               personalised: false, confidence: 0.9, language: 'he' }) }],
@@ -60,8 +60,11 @@ const fmt = read.body.output_config.format;
 ok('structured output requested', fmt.type === 'json_schema');
 ok('schema enums come from the catalogue',
   fmt.schema.properties.agency.enum.includes('btl') && fmt.schema.properties.agency.enum.includes(null));
-ok('doc keys are constrained to the catalogue',
-  fmt.schema.properties.required_docs.items.properties.key.enum.length === Object.keys(catalogue.docs).length);
+/* The enum still bounds the *keys* — an invented key would translate to nothing in
+   three of the four languages. null joined it when the vocabulary opened up: "no
+   key fits, here is the Hebrew name" is a legitimate answer, not a failure. */
+ok('doc keys are still drawn from the catalogue, plus null',
+  fmt.schema.properties.required_docs.items.properties.key.enum.length === Object.keys(catalogue.docs).length + 1);
 ok('the model cannot invent an agency', !fmt.schema.properties.agency.enum.includes('made_up'));
 ok('max_tokens leaves room for the answer', read.body.max_tokens >= 2000);
 

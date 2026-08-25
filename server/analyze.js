@@ -11,24 +11,38 @@
  */
 
 import { ApiError } from './errors.js';
-import { identifySystem, readSystem, catalogueBlock, analysisSchema, IDENTIFY_SCHEMA } from './prompts.js';
+import { identifySystem, readSystem, catalogueBlock, extrasBlock, analysisSchema, IDENTIFY_SCHEMA } from './prompts.js';
+import { validateAnalysis, validateIdentify } from './validate.js';
+
+/* Which model each stage costs against, when the adapter does not say. An adapter
+   that routes through a gateway names its own slugs (adapters/openrouter.js), so
+   asking it first is what stops the spend cap being priced against a model nobody
+   called. */
+const DEFAULT_MODEL_NAMES = {
+  identify: 'claude-haiku-4-5',
+  read:     'claude-sonnet-5',
+  escalate: 'claude-opus-5'
+};
 
 const CONFIDENCE_FLOOR = 0.45;   /* below this nothing is proposed at all */
 const ESCALATE_BELOW   = 0.6;    /* below this, try the stronger model once */
 
 /* Impersonal by construction: agency + form code + normalised title. No recipient,
-   no reference number, no date. */
-export async function formSignature({ agency, form_code, form_title_he }) {
+   no reference number, no date.
+   Falls back to the agency's Hebrew name when no catalogue key matched, so a body
+   nobody has enumerated still gets a stable signature rather than sharing "?" with
+   every other unlisted body. */
+export async function formSignature({ agency, agency_he, form_code, form_title_he }) {
   const norm = s => (s || '').replace(/[\s‏‎"'׳״.,:;()\-–—]/g, '').slice(0, 60);
-  const basis = `${agency || '?'}|${norm(form_code)}|${norm(form_title_he)}`;
+  const basis = `${agency || norm(agency_he) || '?'}|${norm(form_code)}|${norm(form_title_he)}`;
   const bytes = new TextEncoder().encode(basis);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 const NOT_A_LETTER = {
-  agency: null, agency_child: null, template: null,
-  required_docs: [], extra_docs: [],
+  agency: null, agency_he: null, agency_child: null, template: null,
+  required_docs: [],
   deadline: null, letter_date: null, reference: null,
   form_code: null, form_title_he: null,
   form_to_fill: { where: 'none', form_code: null, form_title_he: null },
@@ -36,20 +50,32 @@ const NOT_A_LETTER = {
 };
 
 export function createAnalyzer({ adapter, catalogue, lookup = async () => null }) {
+  /* Built once: byte-identical on every request, which is what lets it carry the
+     cache breakpoint. The user's own vocabulary is deliberately NOT in here — it
+     varies per person, and folding it in would cost everyone the cache. */
   const cachedPrefix = catalogueBlock(catalogue);
-  const schema = analysisSchema(catalogue);
 
-  return async function analyze({ image, mediaType, hint }) {
+  return async function analyze({ image, mediaType, hint, extras }) {
+    /* The schema does vary per request, because a name this user saved last week is
+       a key the model may answer with today. Schemas are not cached, so this is
+       free. */
+    const schema = analysisSchema(catalogue, extras);
+    const userVocab = extrasBlock(extras);
     const started = Date.now();
     const usageTotal = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 };
     let costUsd = 0;
 
+    /* `model` is what we asked for, not what came back — a gateway may answer on a
+       different revision of the same slug, and the price table is keyed by what we
+       requested. An adapter that knows the real charge reports it in usage.cost and
+       costOf returns that instead of estimating. */
     const track = (r, model) => {
       usageTotal.input_tokens  += r.usage.input_tokens || 0;
       usageTotal.output_tokens += r.usage.output_tokens || 0;
       usageTotal.cache_read_tokens += r.usage.cache_read_input_tokens || 0;
       costUsd += adapter.costOf(model, r.usage);
     };
+    const modelFor = stage => (adapter.models && adapter.models[stage]) || DEFAULT_MODEL_NAMES[stage];
 
     /* --- 1. identify ------------------------------------------------------- */
     let ident;
@@ -58,13 +84,14 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         system: identifySystem(),
         cachedPrefix,
         image, mediaType,
-        instruction: 'זהה את המסמך המצורף.',
+        instruction: withVocab('זהה את המסמך המצורף.', userVocab),
         schema: IDENTIFY_SCHEMA
       });
     } catch (e) {
       throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
-    track(ident, 'claude-haiku-4-5');
+    track(ident, modelFor('identify'));
+    ident.parsed = validateIdentify(ident.parsed, catalogue, extras);
 
     if (!ident.parsed.is_letter) {
       return {
@@ -104,43 +131,66 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         system: readSystem(),
         cachedPrefix,
         image, mediaType,
-        instruction: instructionFor(hint),
+        instruction: withVocab(instructionFor(hint), userVocab),
         schema
       });
     } catch (e) {
       throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
-    track(read, 'claude-sonnet-5');
+    track(read, modelFor('read'));
+    /* Validated before its confidence is compared with anything, so the comparison
+       is between two answers that have both already lost whatever the catalogue
+       does not recognise. Otherwise a confident answer full of invented keys wins
+       against a modest one that was right. */
+    let checked = validateAnalysis(read.parsed, catalogue, extras);
+    let usedModel = read.model;
 
     let escalated = false;
-    if ((read.parsed.confidence ?? 0) < ESCALATE_BELOW) {
+    if (checked.result.confidence < ESCALATE_BELOW) {
       try {
         const up = await adapter.escalate({
           system: readSystem(), cachedPrefix, image, mediaType,
-          instruction: instructionFor(hint), schema
+          instruction: withVocab(instructionFor(hint), userVocab), schema
         });
-        track(up, 'claude-opus-5');
-        if ((up.parsed.confidence ?? 0) > (read.parsed.confidence ?? 0)) { read = up; escalated = true; }
+        track(up, modelFor('escalate'));
+        const upChecked = validateAnalysis(up.parsed, catalogue, extras);
+        if (upChecked.result.confidence > checked.result.confidence) {
+          checked = upChecked; usedModel = up.model; escalated = true;
+        }
       } catch { /* escalation is best-effort; the first answer still stands */ }
     }
 
-    const result = read.parsed;
-    if ((result.confidence ?? 0) < CONFIDENCE_FLOOR) {
-      result.required_docs = [];
-      result.extra_docs = [];
-    }
+    const result = checked.result;
+    if (result.confidence < CONFIDENCE_FLOOR) result.required_docs = [];
 
+    /* Charged only for a read that produced something the user can act on, which
+       means a confident answer AND at least one document proposed. Confidence alone
+       was the wrong test: a blank claim form reads perfectly — high confidence, real
+       agency, real form code — and yields no checklist at all, because there is no
+       checklist in it. Billing a credit for that is billing for an empty list, which
+       is the opposite of "failed reads cost nothing".
+       The same argument covers the unreadable photo it was already written for. */
+    const proposed = result.required_docs.length;
+    const usable = result.confidence >= CONFIDENCE_FLOOR && proposed > 0;
     return {
       result,
-      /* Charged only for a read that produced something usable. An unreadable photo
-         cost us money and the user nothing useful, so they are not billed for it. */
-      credits: (result.confidence ?? 0) >= CONFIDENCE_FLOOR ? 1 : 0,
-      meta: { source: 'model', credits_charged: (result.confidence ?? 0) >= CONFIDENCE_FLOOR ? 1 : 0,
-              form_signature: signature, model: read.model, escalated,
+      credits: usable ? 1 : 0,
+      meta: { source: 'model', credits_charged: usable ? 1 : 0,
+              form_signature: signature, model: usedModel, escalated,
+              /* How much of the answer the catalogue refused. Zero is the normal
+                 case; anything else is the number the evaluation set exists to
+                 watch, so it is counted even though nobody acts on it yet. */
+              dropped: checked.droppedTotal,
               latency_ms: Date.now() - started, ...usageTotal },
       costUsd
     };
   };
+}
+
+/* The user's own names ride with the instruction rather than with the catalogue,
+   so the shared block stays byte-identical and keeps its cache. */
+function withVocab(instruction, userVocab) {
+  return userVocab ? `${userVocab}\n\n${instruction}` : instruction;
 }
 
 function instructionFor(hint) {

@@ -50,5 +50,5 @@ Everything printed above is safe to paste.
 Never paste, and never needed:
   - a Cloudflare API token or Global API Key
   - the contents of any `wrangler secret`
-  - your ANTHROPIC_API_KEY
+  - your OPENROUTER_API_KEY or ANTHROPIC_API_KEY
 NOTE

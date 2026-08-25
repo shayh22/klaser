@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import fs from 'fs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const b=await chromium.launch(); const p=await (await b.newContext()).newPage();

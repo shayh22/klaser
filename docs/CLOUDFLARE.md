@@ -32,7 +32,7 @@ It prints, and nothing else:
 | Your `workers.dev` subdomain | It determines the URL: `https://klaser.<subdomain>.workers.dev` |
 
 **Never paste, and never needed:** a Cloudflare API token or Global API Key, the
-contents of any `wrangler secret`, or your `ANTHROPIC_API_KEY`. Nothing in the
+contents of any `wrangler secret`, or your `OPENROUTER_API_KEY`. Nothing in the
 deployment requires me to hold a credential — the script runs on your machine, under
 your own `wrangler login`.
 

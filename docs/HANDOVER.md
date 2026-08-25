@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**State as of commit `b2dc52f` on `main`. 395 assertions, 0 failures (`node tests/run.mjs`).**
+**621 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -39,11 +39,27 @@ data, the answers live in a profile in the browser, and the join happens on-devi
 There is no endpoint that accepts a profile — `tests/mvptest.mjs` asserts at the
 network level that no request ever carried one.
 
-**2. The model returns catalogue keys, not prose.** It is given the app's own
-`AGENCIES`/`DOCS`/`TEMPLATES` and answers with keys from them. Consequences: a
-hallucinated document name is structurally impossible on the main path; all four
-languages render for free (the client translates the keys); and the output is exactly
-evaluable.
+**2. The catalogue is a hint, not a gate — and evidence is the gate.** The model gets
+the app's own `AGENCIES`/`DOCS`/`TEMPLATES` and answers with a key *when one genuinely
+fits*, which is what makes all four languages render for free. When none fits it
+answers with the Hebrew name the letter used, and that document is every bit as real.
+
+This is a reversal, and it was the stated one. The old rule was "keys only, anything
+else is discarded", whose reopening trigger in `READINESS.md` read *"a catalogue too
+small to describe real letters"*. A three-page קרנית claim form fired it: קרנית is not
+one of the nine bodies, and never will be for most people, and neither is a landlord,
+a management company, or the fund an employer uses. A vocabulary that refuses
+everything it has not heard of is useless to precisely the person this app is for.
+
+What replaced it is narrower and cheaper: **a document that cannot be quoted from the
+letter does not go on the list, whatever it is called.** That is what separates a list
+read off the page from a list guessed from the subject — and unlike a closed word
+list, it costs the user nothing. A key still buys translation; it no longer buys
+permission.
+
+Anything kept that the shared list does not carry becomes **that user's own
+vocabulary**: saved locally, carried in their backup, and sent with their next scan so
+the model recognises next month what they named this month.
 
 ---
 
@@ -55,16 +71,22 @@ server/                 Cloudflare Worker: serves the app AND the API from one o
   index.js              router: /v1/health, /v1/token, /v1/analyze, else static
   analyze.js            identify (Haiku) → catalogue lookup → read (Sonnet)
   prompts.js            Hebrew system prompts + the schema built from the catalogue
-  adapters/anthropic.js real provider — raw HTTP, never yet executed (see below)
+  validate.js           the catalogue check applied to the answer, not just asked for
+  adapters/openrouter.js  the gateway — one key, many models; the deployed path
+  adapters/anthropic.js   Anthropic direct — raw HTTP, never yet executed (see below)
   adapters/mock.js      realistic Hebrew fixtures; why the suite runs with no key
   store.js              credits + daily spend. D1 in prod, memory otherwise
   assets.js             serves the page and injects the endpoint into it
 tools/
   extract-catalogue.mjs generates contracts/catalogue.json FROM index.html
+  preflight.mjs         key, slugs, routing, image and PDF — five checks, ~$0.001
   probe-live.mjs        one real API call, reported in detail
   build-dist.mjs        assembles dist/ for deploy
   build-demo.mjs        packages the standalone demo page
 tests/run.mjs           runs everything, one number
+  browser.mjs           where Playwright is, resolved at run time not baked in
+  pdftest.mjs           a real 3-page Hebrew קרנית form, end to end
+  karnit-form.pdf       that form — blank, public, no personal data
 ```
 
 **The catalogue is generated, never hand-written.** `--check` fails CI when
@@ -78,36 +100,114 @@ first time someone added a document to one of them.
 | | |
 |---|---|
 | App | **shipped**, live on Pages, feature off there by design |
-| Worker code | **written and tested**, never deployed |
+| Worker code | **written and tested**, deployed on Cloudflare |
+| OpenRouter adapter | written, 65 assertions, **never executed against the real API** |
 | Anthropic adapter | **never executed against the real API** |
-| Cloudflare | account exists; nothing deployed yet |
-| ZDR agreement | not signed |
+| Retention | enforced per request through routing, not by contract — see below |
 | Evaluation set | **does not exist** — the real blocker |
+
+### Which provider answers
+
+Decided by which key is present, never by a flag someone has to set alongside it:
+`OPENROUTER_API_KEY` → the gateway, `ANTHROPIC_API_KEY` → Anthropic direct, neither
+→ the mock. `AI_PROVIDER` exists only to break a tie when both are set. A misconfigured
+deploy therefore serves fixtures rather than errors, and `/v1/health` says which.
+
+Going through a gateway buys two things beyond the model list:
+
+- **Retention is a routing decision, per request, not a contract.** Every call
+  carries `zdr: true` and `data_collection: "deny"` — separate guarantees, hence both
+  — plus `require_parameters: true`, which keeps the request away from any provider
+  that would ignore the schema and answer in prose. All three default on; only an
+  explicit `0`/`allow` turns the first two off.
+- **The spend cap counts real money.** OpenRouter reports what it actually charged,
+  so the cap no longer depends on a price table that goes stale on a repricing.
+
+The cost is that the schema is no longer enforced by the same service that generates
+the tokens. That is what `server/validate.js` is for.
 
 ### The immediate next step
 
-`docs/DEPLOY-FROM-PHONE.md` — the whole path in a browser, no terminal: Anthropic
-key → connect the repo to Cloudflare (it builds on push) → paste the secret. D1 is
-optional and deliberately commented out so the first deploy needs no setup.
+`npm run preflight`, then `tools/probe-live.mjs`. The first asks the five things that
+can be wrong separately — key, each slug, whether the routing leaves a provider,
+image, PDF — for about a tenth of a cent, so a failure names itself instead of
+arriving as one error from a two-call pipeline. The second runs the real thing.
+**Expect something to fail** — see below. Read the `dropped` line: anything but 0 on
+a first run means the schema is being asked for and not enforced.
 
-Then `tools/probe-live.mjs` (or the deployed logs) for the first real call. **Expect
-it to fail in some specific way** — see below.
+**Free models are not a way to test this.** They are free because the provider may
+log, train on or publish the input, so `zdr` + `data_collection: deny` filters every
+one of them out and the gateway 404s. That is the routing working. $5 of credit is
+the whole bring-up.
 
 ### What is unverified
 
-The Anthropic adapter's request *shape* is asserted (`tests/adaptertest.mjs`, 23
-assertions: block types for images and PDFs, `cache_control` on the catalogue and not
-the prompt, schema enums from the catalogue, headers, budgets). Assertions about a
-request are not a response. Likely first failures, in order:
+**Neither adapter has ever executed.** Both request *shapes* are asserted — 23
+assertions for Anthropic, 65 for OpenRouter — covering content-block types for images
+and PDFs, `cache_control` on the catalogue and not the prompt, schema enums from the
+catalogue, routing preferences, headers and budgets. Assertions about a request are
+not a response. Likely first failures on the gateway path:
 
-1. `output_config.format` shaped differently than documented
-2. Structured output not in the first text block (Opus 5 emits thinking blocks first)
-3. The Hebrew prompt underperforming on a real letter
-4. `max_tokens` too tight once thinking is on
+1. A renamed model slug — a 404, fixed with an `OPENROUTER_MODEL_*` var, no deploy
+2. "No allowed providers" — the retention filters doing their job for a model that
+   has no compliant endpoint; change model rather than widening them by reflex
+3. Strict-mode schema rejected — `normaliseSchema()` translates ours, from docs
+4. A PDF read as a blank page — the `file` part or the plugin wrong, and neither errors
+5. The Hebrew prompt underperforming on a real letter
+
+And on the Anthropic path: `output_config.format` shaped differently than documented,
+structured output not in the first text block (Opus 5 emits thinking blocks first),
+`max_tokens` too tight once thinking is on.
 
 `ApiError` keeps the upstream body server-side precisely so these are diagnosable;
 the browser only ever sees a code and a Hebrew message, and a test asserts the error
 response has exactly three keys.
+
+### The check on the answer — what it does and does not do
+
+Through a gateway the schema in the request is a request, not a guarantee: whether it
+was enforced depends on which provider answered, and strict-mode JSON Schema cannot
+express half of ours anyway — lengths, ranges and item caps are dropped on the way
+out. So `server/validate.js` runs on our side, after the answer, before anything is
+returned.
+
+What it enforces:
+
+- **a document with nothing quoted from the letter is dropped**, catalogue key or
+  not. This is the whole guarantee now. Rule 2 of the prompt, enforced rather than
+  requested.
+- a deadline that is not a real calendar date becomes `null`; the client writes that
+  field straight onto the case, so a wrong one is worse than none
+- ranges, lengths and list caps are re-applied
+
+What it deliberately does **not** do any more:
+
+- it does not discard a document because its key is unknown. The key is dropped and
+  the document is kept under its Hebrew name, which is the same thing the model does
+  when it knows no key fits.
+- it does not null an agency it has not heard of. `agency_he` carries the name, and
+  the client offers to save it.
+
+`meta.dropped` still counts, but it counts something different: no longer "the model
+used a word we do not know" — that is now normal — but "the model listed something it
+could not point at". Zero is the normal case.
+
+### The user's own vocabulary
+
+`/v1/analyze` accepts an `extras` object: the bodies and documents this user has
+saved, as keys and Hebrew names. Two things about it are deliberate:
+
+- **It is not folded into the cached catalogue block.** That block has to stay
+  byte-identical across users or it stops earning its prompt-cache breakpoint, so the
+  user's names ride with the instruction instead. `tests/gatewaytest.mjs` asserts the
+  shared block is untouched.
+- **It is bounded and scrubbed before it goes near a prompt** — identifier-shaped
+  keys, 80 characters a name, newlines flattened, 60 bodies and 250 documents. This is
+  user text being pasted into a system prompt; a "name" containing its own line breaks
+  is not a name.
+
+It is stored nowhere on the server. It arrives with the request and leaves with the
+response.
 
 ---
 
@@ -146,12 +246,41 @@ Risks: `docs/READINESS.md`.
 - **The upstream error body must not be discarded** when wrapping provider errors; it
   is the only thing that says which field was wrong.
 - **`capture="environment"` forces the camera** and blocks picking a letter already
-  in the photo library — the common case. Removed from `#letterInput`;
-  **`#scanInput` still has it** and has the same problem.
+  in the photo library — the common case, and it makes the emailed PDF unpickable
+  entirely. Removed from `#letterInput`, then found still on `#scanInput`. Now gone
+  from both, and `tests/scantest.mjs` asserts no file input has it.
+- **PDFs are a `file` part on OpenRouter and a `document` block on Anthropic**, and
+  the `file-parser` plugin has to be named in the request or the document is dropped
+  without an error — the model reads a blank page and returns a confident empty list.
+- **The retention filters are not decoration.** `zdr` and `data_collection` are
+  separate guarantees and a provider can satisfy one without the other. Widening them
+  to make an error go away is a privacy decision, not a config fix.
 - **Stripping the document wrappers takes `<meta charset>` with it** — a page of
   Hebrew then renders as mojibake on any host that does not send the charset itself.
 - **Test fixtures must not hardcode dates.** One asserted "4 days out" and silently
   rotted.
+- **Nor hardcode paths.** Twenty browser suites imported Playwright from an absolute
+  path inside the container they were written in, so all twenty crashed on CI — and a
+  crash reports zero passed and zero failed, which on the summary line looks almost
+  exactly like a suite that had nothing to say. `tests/browser.mjs` resolves it now,
+  and `run.mjs` prints why a suite crashed.
+- **Assert through the key the app actually writes.** One assertion read
+  `localStorage['klaser.cases']`, which has never existed — the app writes
+  `klaser.v1`, holding `{lang, cases}`. It read `undefined`, asserted nothing, and
+  passed on every run.
+- **A high-confidence read is not the same as a useful one.** A blank claim form
+  reads perfectly and contains no checklist, because the list of attachments is for
+  the claimant to write. Charging a credit for that charges for an empty list.
+- **A service answering from fixtures must say so.** Demo mode has always carried a
+  banner because "a canned answer that looked like a real one would be the single
+  most misleading thing this app could do". A deployment with no provider key does
+  exactly that and said nothing, which is worse, because nobody chose it. The review
+  sheet now shows the same warning when `/v1/health` reports `provider: mock`.
+- **A closed vocabulary is a wrong answer dressed as a safe one.** Dropping every
+  document the catalogue had not heard of looked like rigour and was mostly just
+  refusing to help — with קרנית, with a landlord, with anything nobody had enumerated.
+  The narrower rule does the real work: drop what cannot be quoted, keep the rest
+  whatever it is called.
 
 ---
 
@@ -162,7 +291,8 @@ Risks: `docs/READINESS.md`.
 1. **Collect 40+ real Hebrew agency letters**, de-identified, hand-labelled. This
    gates every ship decision and has the longest lead time. Nothing else on this list
    matters as much.
-2. Sign the zero-data-retention agreement before a single real person's letter is sent.
+2. Run `tools/probe-live.mjs` once against the real key. Nothing above the mock has
+   ever had a real response.
 3. Decide liability wording — the current disclaimer covers a hand-written list, not a
    machine-generated one read off the user's own letter.
 4. **Backlog B-1** — the state emblem in `docs/og-image.jpg`. Researched, statutes
@@ -178,11 +308,13 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                              # 395 assertions
-node server/dev.js                              # mock provider, no key needed
-ANTHROPIC_API_KEY=sk-ant-… node server/dev.js   # real models
-ANTHROPIC_API_KEY=sk-ant-… node tools/probe-live.mjs [letter.jpg]
-node tools/extract-catalogue.mjs                # regenerate after editing index.html
+node tests/run.mjs                                # 621 assertions
+node server/dev.js                                # mock provider, no key needed
+OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
+OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway
+ANTHROPIC_API_KEY=sk-ant-… node server/dev.js     # real models, Anthropic direct
+OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs [letter.jpg|letter.pdf]
+node tools/extract-catalogue.mjs                  # regenerate after editing index.html
 ```
 
 Open `index.html` directly for the app alone — no build, no server, feature off.

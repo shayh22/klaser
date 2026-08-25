@@ -1,24 +1,30 @@
 #!/usr/bin/env node
-/* One real call against the Anthropic API, reported in detail.
+/* One real call against whichever provider is configured, reported in detail.
  *
- * The adapter has never executed. This runs it once, on a real image, and prints
- * exactly what the API accepted or rejected — enough to fix the shape without
- * anyone having to share a key.
+ * Every assertion in the test suite is about a request. None of them is about a
+ * response, because no adapter has ever been given one by the real thing. This runs
+ * the whole pipeline once, on a real image, and prints exactly what was accepted or
+ * rejected — enough to fix the shape without anyone having to share a key.
  *
+ *   OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs
+ *   OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs path/to/letter.pdf
  *   ANTHROPIC_API_KEY=sk-ant-… node tools/probe-live.mjs
- *   ANTHROPIC_API_KEY=sk-ant-… node tools/probe-live.mjs path/to/letter.jpg
+ *
+ * It selects the provider exactly as the Worker does, so what this exercises is the
+ * deployed path and not a second one that happens to look like it.
  *
  * The key is never printed, and no part of the image is printed. Paste the output
  * anywhere you like.
  */
 import { readFileSync } from 'node:fs';
-import { createAnthropicAdapter } from '../server/adapters/anthropic.js';
+import { chooseAdapter } from '../server/index.js';
 import { createAnalyzer } from '../server/analyze.js';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const key = process.env.ANTHROPIC_API_KEY;
+const key = process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY;
 if (!key) {
-  console.error('ANTHROPIC_API_KEY is not set.\n\n  ANTHROPIC_API_KEY=sk-ant-… node tools/probe-live.mjs [image.jpg]');
+  console.error('No API key set.\n\n  OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs [letter.jpg]\n'
+              + '  ANTHROPIC_API_KEY=sk-ant-… node tools/probe-live.mjs [letter.jpg]');
   process.exit(2);
 }
 
@@ -32,9 +38,20 @@ const catalogue = JSON.parse(readFileSync(ROOT + 'contracts/catalogue.json', 'ut
 console.log('image     :', imgPath.replace(ROOT, ''), `(${(bytes.length / 1024).toFixed(0)}KB, ${mediaType})`);
 console.log('catalogue :', Object.keys(catalogue.docs).length, 'documents,',
             Object.keys(catalogue.templates).length, 'processes');
-console.log('key       : …' + key.slice(-4), '\n');
+const adapter = chooseAdapter(process.env);
+/* The mock needs no key, so reaching it here means the key is set but something
+   about the selection is not what the caller assumed. Better to stop than to print
+   a fixture under the heading "IT WORKED". */
+if (adapter.name === 'mock') {
+  console.error('A key is set but the mock was selected — check AI_PROVIDER.');
+  process.exit(2);
+}
 
-const adapter = createAnthropicAdapter({ apiKey: key });
+console.log('key       : …' + key.slice(-4));
+console.log('provider  :', adapter.name);
+if (adapter.models) console.log('models    :', Object.entries(adapter.models).map(([k, v]) => `${k}=${v}`).join('  '));
+console.log('');
+
 const analyze = createAnalyzer({ adapter, catalogue });
 
 const t0 = Date.now();
@@ -49,6 +66,10 @@ try {
               out.meta.cache_read_tokens, 'cached');
   console.log('cost        : $' + (out.costUsd || 0).toFixed(5));
   console.log('credits     :', out.meta.credits_charged);
+  /* Anything but 0 means the model answered outside the catalogue and the check
+     caught it. Worth seeing on the very first real call: it is the difference
+     between the schema being enforced upstream and only being asked for. */
+  console.log('dropped     :', out.meta.dropped, out.meta.dropped ? '  <- the catalogue check refused part of the answer' : '');
   console.log('signature   :', out.meta.form_signature);
   console.log('\n--- what it read ---');
   console.log(JSON.stringify(out.result, null, 2));
@@ -57,7 +78,12 @@ try {
   const r = out.result;
   const check = (label, cond) => console.log((cond ? '  ok   ' : '  BAD  ') + label);
   check('agency is a catalogue key or null', r.agency === null || r.agency in catalogue.agencies);
-  check('every doc is a catalogue key', (r.required_docs || []).every(d => d.key in catalogue.docs));
+  check('the agency has a name either way', !!r.agency_he || r.agency === null);
+  /* A key is optional now — the catalogue translates, it does not permit. What every
+     document must have is a name to show and a quote to justify it. */
+  check('every doc names a catalogue key or nothing',
+    (r.required_docs || []).every(d => d.key === null || d.key in catalogue.docs));
+  check('every doc has a hebrew name', (r.required_docs || []).every(d => (d.he || '').length > 0));
   check('every doc quotes evidence', (r.required_docs || []).every(d => (d.evidence || '').length > 0));
   check('confidence is a number 0..1', typeof r.confidence === 'number' && r.confidence >= 0 && r.confidence <= 1);
   check('form_to_fill.where is set', ['self', 'separate', 'none'].includes(r.form_to_fill?.where));
