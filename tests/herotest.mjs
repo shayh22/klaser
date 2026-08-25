@@ -7,10 +7,21 @@ async function serveDecodable(ctx){
   await ctx.route('**/gemini_generated_video_*.mp4', r =>
     r.fulfill({status:200, contentType:'video/webm', body:WEBM}));
 }
+/* The load-failure path used to be produced by running in a Chromium with no
+   H.264, which made the mp4 undecodable. That is a property of the browser build,
+   not of the app: a runner whose Chromium *does* carry H.264 plays the video
+   happily, keeps the hero, and fails an assertion about code that is working. It
+   went unnoticed for as long as this suite could not run on a runner at all.
+   The app removes the hero on the video element's `error` event, so failing the
+   request produces that event on any build. */
+async function serveBroken(ctx){
+  await ctx.route('**/gemini_generated_video_*.mp4', r => r.fulfill({status:404, body:''}));
+}
 
-// this build has no H.264, so the video errors -> the genuine-failure path
+// a genuine load failure -> falls back to the text title
 {
-  const p=await (await b.newContext({viewport:{width:375,height:812}})).newPage();
+  const ctx=await b.newContext({viewport:{width:375,height:812}}); await serveBroken(ctx);
+  const p=await ctx.newPage();
   await p.goto('http://127.0.0.1:8099/index.html'); await p.waitForTimeout(1500);
   ok('LOAD FAILURE: falls back to the text title', await p.isVisible('#appH1'));
   ok('LOAD FAILURE: hero removed', (await p.$$('#hero')).length===0);
