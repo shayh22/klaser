@@ -7,30 +7,40 @@ letters correctly.
 
 ## The five steps
 
-### 1. Anthropic API key — 5 minutes
+### 1. A provider key — 5 minutes
 
-Create a key at console.anthropic.com. That alone switches the provider: the server
-picks the Anthropic adapter when `ANTHROPIC_API_KEY` is set, and the mock when it is
-not. Nothing else changes.
+Create a key at <https://openrouter.ai> (or console.anthropic.com to talk to
+Anthropic directly). The key alone switches the provider: the server picks OpenRouter
+when `OPENROUTER_API_KEY` is set, Anthropic when only `ANTHROPIC_API_KEY` is, and the
+mock when neither is. There is no flag to set alongside it — a key with no provider
+configured to use it is the deploy mistake this design removes.
 
 Try it locally before deploying anything:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-… node server/dev.js
-# then open index.html with window.KLASER_AI_ENDPOINT = 'http://localhost:8787'
+OPENROUTER_API_KEY=sk-or-… node server/dev.js
+# then open http://localhost:8787 — the endpoint is injected into the page
 ```
 
-This is the moment the adapter runs for the first time. Budget for a round of
-fixes here — see "what is unverified" below.
+This is the moment an adapter runs for the first time. Budget for a round of fixes
+here — see "what is unverified" below. `docs/API-KEY.md` has the detail, including
+what each request costs.
 
-### 2. Zero data retention — before any real letter
+### 2. Retention — before any real letter
 
-Ask Anthropic for a ZDR agreement on the account. Do this **before** photographing a
-real letter belonging to a real person, not after. It is also what keeps
-`claude-fable-5` out of scope, since that model requires 30-day retention.
+Through OpenRouter this is per request rather than per contract, and it is already
+on: every call carries `zdr: true` and `data_collection: "deny"`, so the request is
+only routed to endpoints that neither retain the letter nor train on it. Nothing to
+sign, but do read what those two mean in `docs/API-KEY.md` — they are not the same
+guarantee, which is why both are set.
 
-Testing with letters you wrote yourself needs no agreement. Testing with someone
-else's ביטוח לאומי letter does.
+Talking to Anthropic directly instead, ask for a ZDR agreement on the account. Do it
+**before** photographing a real letter belonging to a real person, not after. It is
+also what keeps `claude-fable-5` out of scope, since that model requires 30-day
+retention.
+
+Testing with letters you wrote yourself needs no agreement either way. Testing with
+someone else's ביטוח לאומי letter does.
 
 ### 3. Cloudflare — one command
 
@@ -80,26 +90,39 @@ counter with the wrong papers.
 
 ## What is unverified, honestly
 
-The Anthropic adapter has never executed. Its request shape is asserted
-(`tests/adaptertest.mjs`, 23 assertions: block types, cache placement, schema enums,
-headers), but assertions about a request are not the same as a response.
+**Neither adapter has ever executed.** Their request shapes are asserted — 23
+assertions for Anthropic, 65 for OpenRouter, covering content-block types, cache
+placement, schema enums, routing preferences and headers — but an assertion about a
+request is not a response. Run `tools/probe-live.mjs` first; it exercises the exact
+selection the Worker uses.
 
-Expect to fix things in this order:
+Expect to fix things in this order, on the OpenRouter path:
 
 | Risk | Why | Where |
 |---|---|---|
-| `output_config.format` rejected or shaped differently | Written from documentation, never called | `server/adapters/anthropic.js` |
-| Structured output arrives somewhere other than the first text block | Opus 5 thinks by default and emits thinking blocks first | the response parser in the same file |
+| A model slug has been renamed | OpenRouter renames faster than this repo deploys, and a stale slug is a 404 | `OPENROUTER_MODEL_*` vars — no deploy needed |
+| "No allowed providers" | `zdr` + `data_collection: deny` + `require_parameters` can between them leave no route for a given model | widen knowingly, or change model |
+| Strict-mode schema rejected | OpenAI strict mode is narrower than the schema we build; `normaliseSchema()` translates it, from documentation | `server/adapters/openrouter.js` |
+| A PDF read as a blank page | The `file` part and the `file-parser` plugin must both be right; a wrong one does not error | probe a PDF separately from an image |
 | Hebrew prompt underperforms | Never seen a real letter | `server/prompts.js` |
-| `max_tokens` too tight once thinking is on | Thinking shares the budget | adapter, already raised to 8000 for Opus |
 
-A PDF bug of exactly this kind was already found and fixed without a key: PDFs need a
-`document` content block, not an `image` one, and the mock could never have caught it
-because the mock never sees a request.
+And on the Anthropic path: `output_config.format` shaped differently than
+documented, structured output arriving after a thinking block, `max_tokens` too tight
+once thinking is on.
+
+Two of these are the same class of bug and only one has been caught so far: PDFs need
+a `document` block on the Anthropic path and a `file` part on the OpenRouter one, and
+the mock could never have caught either, because the mock never sees a request.
+
+The safety net for the rest is `server/validate.js`: whatever a provider answers, an
+invented document key, an unquoted document or a deadline that is not a date is
+dropped before it can reach anyone's case. `meta.dropped` counts what it refused, so
+a provider that quietly stops honouring the schema is visible in the logs rather than
+in somebody's checklist.
 
 ## What it will cost while you test
 
-Roughly **$0.03 per letter** on Sonnet 5. A hundred test letters is about $3. The
+Roughly **$0.03 per letter** on a Sonnet-class model. A hundred test letters is about $3. The
 daily spend cap in `wrangler.toml` defaults to $25, and the kill switch
 (`KILL_SWITCH=1`) stops the service accepting work without taking the app down —
 clients fall back to local-only and carry on.

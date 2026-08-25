@@ -474,7 +474,11 @@
   </footer>
 </div>
 
-<input type="file" id="scanInput" accept="image/*,application/pdf" multiple capture="environment" class="sr">
+<!-- No capture="environment" on either. It forces the camera and hides the photo
+     library, and the common case is a document already photographed — often the PDF
+     the agency emailed, which a camera cannot produce at all. It was removed from
+     #letterInput once; it had the same effect here. -->
+<input type="file" id="scanInput" accept="image/*,application/pdf" multiple class="sr">
 <input type="file" id="letterInput" accept="image/*,application/pdf" class="sr">
 
 <div id="printArea" dir="rtl" lang="he"></div>

@@ -8,6 +8,7 @@ import { ApiError, errorResponse, json } from './errors.js';
 import { MemoryStore, D1Store } from './store.js';
 import { createAnalyzer } from './analyze.js';
 import { createAnthropicAdapter } from './adapters/anthropic.js';
+import { createOpenRouterAdapter } from './adapters/openrouter.js';
 import { createMockAdapter } from './adapters/mock.js';
 import { serveAsset } from './assets.js';
 
@@ -24,9 +25,7 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
     ? new D1Store(env.DB, { freeCredits: Number(env.FREE_CREDITS || 10) })
     : new MemoryStore({ freeCredits: Number(env.FREE_CREDITS || 10) }));
 
-  adapter = adapter || (env.ANTHROPIC_API_KEY
-    ? createAnthropicAdapter({ apiKey: env.ANTHROPIC_API_KEY })
-    : createMockAdapter());
+  adapter = adapter || chooseAdapter(env);
 
   const analyze = createAnalyzer({ adapter, catalogue, lookup });
 
@@ -115,6 +114,11 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
         console.log(JSON.stringify({
           ev: 'analyze', source: out.meta.source, model: out.meta.model,
           escalated: out.meta.escalated, credits: out.meta.credits_charged,
+          /* How much of the answer the catalogue check refused. Zero on every
+             healthy request, which is what makes a non-zero one worth alerting on:
+             it is a provider that stopped honouring the schema, seen here rather
+             than in somebody's checklist. */
+          dropped: out.meta.dropped || 0,
           conf: out.result.confidence, latency_ms: out.meta.latency_ms,
           in: out.meta.input_tokens, out: out.meta.output_tokens,
           cached: out.meta.cache_read_tokens, usd: +(out.costUsd || 0).toFixed(5)
@@ -138,6 +142,41 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
       return res;
     }
   };
+}
+
+/* Which provider answers, decided by which key is present rather than by a flag
+   somebody has to remember to set alongside it. A key with no provider to use it is
+   the failure mode worth designing out: pasting the secret is the whole deploy.
+   AI_PROVIDER exists for the one case the keys cannot express — both keys set, and
+   a deliberate choice between them.
+   With no key at all this is the mock, which is why the suite runs with no key and
+   why a misconfigured deploy degrades to fixtures rather than to a 500. */
+export function chooseAdapter(env = {}) {
+  const want = String(env.AI_PROVIDER || '').trim().toLowerCase();
+
+  if (want === 'mock') return createMockAdapter();
+  if ((want === 'openrouter' || (!want && env.OPENROUTER_API_KEY)) && env.OPENROUTER_API_KEY) {
+    return createOpenRouterAdapter({
+      apiKey: env.OPENROUTER_API_KEY,
+      /* Every knob here is a var rather than a constant because each one is a way
+         a deploy can be wrong in a way only the deploy knows about: a renamed
+         model slug, a PDF engine that reads scans better, or a privacy filter so
+         narrow it leaves no provider able to serve the request at all. */
+      models: {
+        ...(env.OPENROUTER_MODEL_IDENTIFY ? { identify: env.OPENROUTER_MODEL_IDENTIFY } : {}),
+        ...(env.OPENROUTER_MODEL_READ     ? { read:     env.OPENROUTER_MODEL_READ }     : {}),
+        ...(env.OPENROUTER_MODEL_ESCALATE ? { escalate: env.OPENROUTER_MODEL_ESCALATE } : {})
+      },
+      ...(env.OPENROUTER_PDF_ENGINE ? { pdfEngine: env.OPENROUTER_PDF_ENGINE } : {}),
+      ...(env.OPENROUTER_SITE_URL ? { referer: env.OPENROUTER_SITE_URL } : {}),
+      /* Default on, and only an explicit "0" turns them off: a letter reaching a
+         provider that retains it is the one failure this service must not have. */
+      zdr: String(env.OPENROUTER_ZDR ?? '1') !== '0',
+      dataCollection: String(env.OPENROUTER_DATA_COLLECTION || 'deny')
+    });
+  }
+  if (env.ANTHROPIC_API_KEY) return createAnthropicAdapter({ apiKey: env.ANTHROPIC_API_KEY });
+  return createMockAdapter();
 }
 
 async function verifyTurnstile(secret, token) {

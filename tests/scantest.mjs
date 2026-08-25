@@ -1,4 +1,6 @@
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+/* the repository this file is in, not the directory it was first written in */
+const ROOT = new URL('..', import.meta.url).pathname;
 async function newCase(page){
   // the toolbar button is hidden while the list is empty; the empty card owns the action
   if(await page.isVisible('#emptyNew')) await page.click('#emptyNew');
@@ -12,8 +14,17 @@ page.on('pageerror', e=>errors.push('PAGEERROR: '+e.message));
 page.on('console', m=>{ if(m.type()==='error') errors.push('CONSOLE: '+m.text()); });
 const ok=(l,c)=>console.log((c?'PASS  ':'FAIL  ')+l);
 
-await page.goto('file:///workspace/klaser-test/index.html');
+await page.goto('file://' + ROOT + 'index.html');
 await page.waitForTimeout(300);
+
+// capture="environment" forces the camera and hides the photo library, so a letter
+// already in the roll — or the PDF the agency emailed, which no camera can produce —
+// becomes unpickable. It was removed from #letterInput once and left on #scanInput,
+// so this asserts it for both rather than for the one that was noticed.
+ok('no file input forces the camera', await page.evaluate(() =>
+  [...document.querySelectorAll('input[type=file]')].every(i => !i.hasAttribute('capture'))));
+ok('both inputs still accept PDFs', await page.evaluate(() =>
+  ['#scanInput', '#letterInput'].every(s => document.querySelector(s).accept.includes('application/pdf'))));
 
 // create a case with template docs
 await newCase(page);

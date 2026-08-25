@@ -90,8 +90,8 @@ The optional service lives in `server/` and runs on Cloudflare Workers:
 
 ```bash
 node server/dev.js          # mock provider — the whole flow works with no API key
-ANTHROPIC_API_KEY=sk-… node server/dev.js
-node tests/run.mjs          # 329 assertions, browser and server
+OPENROUTER_API_KEY=sk-or-… node server/dev.js
+node tests/run.mjs          # 529 assertions, browser and server
 ```
 
 The mock provider is not a stub: it returns realistic Hebrew fixtures in the real

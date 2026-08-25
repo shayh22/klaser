@@ -12,6 +12,17 @@
 
 import { ApiError } from './errors.js';
 import { identifySystem, readSystem, catalogueBlock, analysisSchema, IDENTIFY_SCHEMA } from './prompts.js';
+import { validateAnalysis, validateIdentify } from './validate.js';
+
+/* Which model each stage costs against, when the adapter does not say. An adapter
+   that routes through a gateway names its own slugs (adapters/openrouter.js), so
+   asking it first is what stops the spend cap being priced against a model nobody
+   called. */
+const DEFAULT_MODEL_NAMES = {
+  identify: 'claude-haiku-4-5',
+  read:     'claude-sonnet-5',
+  escalate: 'claude-opus-5'
+};
 
 const CONFIDENCE_FLOOR = 0.45;   /* below this nothing is proposed at all */
 const ESCALATE_BELOW   = 0.6;    /* below this, try the stronger model once */
@@ -44,12 +55,17 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
     const usageTotal = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 };
     let costUsd = 0;
 
+    /* `model` is what we asked for, not what came back — a gateway may answer on a
+       different revision of the same slug, and the price table is keyed by what we
+       requested. An adapter that knows the real charge reports it in usage.cost and
+       costOf returns that instead of estimating. */
     const track = (r, model) => {
       usageTotal.input_tokens  += r.usage.input_tokens || 0;
       usageTotal.output_tokens += r.usage.output_tokens || 0;
       usageTotal.cache_read_tokens += r.usage.cache_read_input_tokens || 0;
       costUsd += adapter.costOf(model, r.usage);
     };
+    const modelFor = stage => (adapter.models && adapter.models[stage]) || DEFAULT_MODEL_NAMES[stage];
 
     /* --- 1. identify ------------------------------------------------------- */
     let ident;
@@ -64,7 +80,8 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
     } catch (e) {
       throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
-    track(ident, 'claude-haiku-4-5');
+    track(ident, modelFor('identify'));
+    ident.parsed = validateIdentify(ident.parsed, catalogue);
 
     if (!ident.parsed.is_letter) {
       return {
@@ -110,33 +127,47 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
     } catch (e) {
       throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
-    track(read, 'claude-sonnet-5');
+    track(read, modelFor('read'));
+    /* Validated before its confidence is compared with anything, so the comparison
+       is between two answers that have both already lost whatever the catalogue
+       does not recognise. Otherwise a confident answer full of invented keys wins
+       against a modest one that was right. */
+    let checked = validateAnalysis(read.parsed, catalogue);
+    let usedModel = read.model;
 
     let escalated = false;
-    if ((read.parsed.confidence ?? 0) < ESCALATE_BELOW) {
+    if (checked.result.confidence < ESCALATE_BELOW) {
       try {
         const up = await adapter.escalate({
           system: readSystem(), cachedPrefix, image, mediaType,
           instruction: instructionFor(hint), schema
         });
-        track(up, 'claude-opus-5');
-        if ((up.parsed.confidence ?? 0) > (read.parsed.confidence ?? 0)) { read = up; escalated = true; }
+        track(up, modelFor('escalate'));
+        const upChecked = validateAnalysis(up.parsed, catalogue);
+        if (upChecked.result.confidence > checked.result.confidence) {
+          checked = upChecked; usedModel = up.model; escalated = true;
+        }
       } catch { /* escalation is best-effort; the first answer still stands */ }
     }
 
-    const result = read.parsed;
-    if ((result.confidence ?? 0) < CONFIDENCE_FLOOR) {
+    const result = checked.result;
+    if (result.confidence < CONFIDENCE_FLOOR) {
       result.required_docs = [];
       result.extra_docs = [];
     }
 
+    const usable = result.confidence >= CONFIDENCE_FLOOR;
     return {
       result,
       /* Charged only for a read that produced something usable. An unreadable photo
          cost us money and the user nothing useful, so they are not billed for it. */
-      credits: (result.confidence ?? 0) >= CONFIDENCE_FLOOR ? 1 : 0,
-      meta: { source: 'model', credits_charged: (result.confidence ?? 0) >= CONFIDENCE_FLOOR ? 1 : 0,
-              form_signature: signature, model: read.model, escalated,
+      credits: usable ? 1 : 0,
+      meta: { source: 'model', credits_charged: usable ? 1 : 0,
+              form_signature: signature, model: usedModel, escalated,
+              /* How much of the answer the catalogue refused. Zero is the normal
+                 case; anything else is the number the evaluation set exists to
+                 watch, so it is counted even though nobody acts on it yet. */
+              dropped: checked.droppedTotal,
               latency_ms: Date.now() - started, ...usageTotal },
       costUsd
     };

@@ -36,6 +36,34 @@ DAILY_SPEND_CAP_USD = "25"
 ALLOWED_ORIGINS = "*"
 KILL_SWITCH = ""
 
-# Secrets, set with `wrangler secret put`:
-#   ANTHROPIC_API_KEY   — required for real analysis; without it the mock answers
+# Which provider answers is decided by which key is present, so there is nothing to
+# set here for the common case. Set AI_PROVIDER only to break a tie when both keys
+# are configured, or to "mock" to serve fixtures from a real deployment.
+#   AI_PROVIDER = "openrouter" | "anthropic" | "mock"
+#
+# Model slugs, only if the defaults in server/adapters/openrouter.js go stale.
+# OpenRouter renames faster than this repository is deployed, and a renamed slug is
+# a 404 from the gateway — which is why it is a dashboard variable and not a commit.
+#   OPENROUTER_MODEL_IDENTIFY = "anthropic/claude-haiku-4.5"
+#   OPENROUTER_MODEL_READ     = "anthropic/claude-sonnet-4.5"
+#   OPENROUTER_MODEL_ESCALATE = "anthropic/claude-opus-4.5"
+#
+# "native" hands the PDF to the model, which is what reads a scanned Hebrew letter
+# best and costs nothing extra. "mistral-ocr" is the fallback if a model on the
+# chosen slug turns out not to accept files, and is charged per page.
+#   OPENROUTER_PDF_ENGINE = "native"
+#
+# Routing restrictions, both on by default and both deliberate: a letter must not
+# reach a provider that retains it or trains on it. If a deploy returns "no
+# allowed providers", that is these two doing their job — widen them knowingly or
+# change model, do not assume the key is wrong.
+#   OPENROUTER_ZDR = "1"                 # "0" allows providers without zero retention
+#   OPENROUTER_DATA_COLLECTION = "deny"  # "allow" permits providers that store data
+#   OPENROUTER_SITE_URL = "https://…"    # attribution only
+
+# Secrets, set with `wrangler secret put` or pasted in the dashboard:
+#   OPENROUTER_API_KEY  — one key, many models; preferred when both are present
+#   ANTHROPIC_API_KEY   — talking to Anthropic directly instead
 #   TURNSTILE_SECRET    — optional; without it token issuance is ungated
+# With neither key the mock answers, so a deploy that forgot the secret serves
+# fixtures rather than errors.
