@@ -156,11 +156,17 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
       result.extra_docs = [];
     }
 
-    const usable = result.confidence >= CONFIDENCE_FLOOR;
+    /* Charged only for a read that produced something the user can act on, which
+       means a confident answer AND at least one document proposed. Confidence alone
+       was the wrong test: a blank claim form reads perfectly — high confidence, real
+       agency, real form code — and yields no checklist at all, because there is no
+       checklist in it. Billing a credit for that is billing for an empty list, which
+       is the opposite of "failed reads cost nothing".
+       The same argument covers the unreadable photo it was already written for. */
+    const proposed = result.required_docs.length + result.extra_docs.length;
+    const usable = result.confidence >= CONFIDENCE_FLOOR && proposed > 0;
     return {
       result,
-      /* Charged only for a read that produced something usable. An unreadable photo
-         cost us money and the user nothing useful, so they are not billed for it. */
       credits: usable ? 1 : 0,
       meta: { source: 'model', credits_charged: usable ? 1 : 0,
               form_signature: signature, model: usedModel, escalated,

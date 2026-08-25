@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 const ROOT = new URL('..', import.meta.url).pathname;
 async function newCase(page){
   // the toolbar button is hidden while the list is empty; the empty card owns the action

@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 const HERE = new URL('.', import.meta.url).pathname;
 const b=await chromium.launch();
 const ok=(l,c)=>console.log((c?'PASS  ':'FAIL  ')+l);

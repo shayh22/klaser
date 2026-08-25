@@ -654,6 +654,13 @@ const STR = {
   scanBig:{
     he:'הקובץ גדול מדי (מעל 25MB).',fr:'Fichier trop volumineux (plus de 25 Mo).',
     en:'File is too large (over 25MB).',ru:'Файл слишком большой (более 25 МБ).'},
+  /* A different limit from scanBig, and a different reason: keeping a scan is
+     bounded by the browser, sending one for analysis is bounded by the service. */
+  letterBig:{
+    he:'הקובץ גדול מדי לניתוח (מעל 4MB). צלמו שוב, או שלחו עמוד אחד במקום מסמך שלם.',
+    fr:"Fichier trop volumineux pour l'analyse (plus de 4 Mo). Reprenez la photo, ou envoyez une seule page.",
+    en:'File is too large to analyse (over 4MB). Take the photo again, or send a single page instead of a whole document.',
+    ru:'Файл слишком большой для анализа (более 4 МБ). Сфотографируйте заново или отправьте одну страницу.'},
   /* The count sits in parentheses so no language has to agree a noun with it —
      Hebrew and Russian both inflect differently at 1, 2 and 5+. */
   backupScans:{
@@ -1966,10 +1973,17 @@ function applyAnalysis(res, picked, targetCaseId){
 
   let c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
   if(c){
-    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:false, prevForm:c.form||null};
+    lastAdd = {caseId:c.id, docIds:docs.map(d=>d.id), created:false, prevForm:c.form||null,
+               prevRef:c.ref||'', prevDeadline:c.deadline||''};
     c.docs.push(...docs);
     if(form) c.form = form;
-    if(res.ref && !c.ref) c.ref = res.reference;
+    /* The אסמכתא and the deadline are the two things only this letter carries, and
+       they were being dropped: the test read `res.ref`, a field that has never
+       existed — the schema calls it `reference` — so the condition was always false.
+       Filled only when the case has none, because a number the user typed themselves
+       beats one read off a photograph. */
+    if(res.reference && !c.ref) c.ref = res.reference;
+    if(res.deadline && !c.deadline) c.deadline = res.deadline;
   }else{
     c = {
       id: uid(),
@@ -2003,6 +2017,8 @@ function undoAdd(){
     if(c){
       c.docs = c.docs.filter(d => !lastAdd.docIds.includes(d.id));
       c.form = lastAdd.prevForm;
+      c.ref = lastAdd.prevRef;
+      c.deadline = lastAdd.prevDeadline;
     }
   }
   lastAdd = null;
@@ -2020,6 +2036,17 @@ async function runLetterScan(file, targetCaseId){
        unreachable without an explicit permission grant, and gating the demo on a
        file that never arrives leaves the button doing nothing at all. */
     const blob = (AI.demo && !file) ? null : await compress(file);
+    /* Checked here rather than left to the server's 413. compress() only shrinks
+       images — a PDF passes through untouched, and a scanned multi-page one from an
+       agency is routinely several megabytes. Without this the phone uploads all of
+       it over mobile data and is then told, in Hebrew, that it was too big. The
+       limit mirrors MAX_IMAGE_BYTES in server/index.js; base64 inflates by 4/3,
+       which is the server's problem, not the number the user is shown. */
+    if(blob && blob.size > 4*1024*1024){
+      aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('letterBig'))}</p>`,
+        [{label:t('scanClose'), primary:true, on:aiClose}]);
+      return;
+    }
     const hint = (()=> {
       const c = targetCaseId ? cases.find(x=>x.id===targetCaseId) : null;
       return c ? {agency:c.agency||null, template:c.template||null} : null;

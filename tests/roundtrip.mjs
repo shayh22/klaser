@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 /* the repository this file is in, not the directory it was first written in */
 const ROOT = new URL('..', import.meta.url).pathname;
 async function newCase(page){

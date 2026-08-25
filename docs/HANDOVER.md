@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**554 assertions, 0 failures (`node tests/run.mjs`).**
+**582 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -68,6 +68,9 @@ tools/
   build-dist.mjs        assembles dist/ for deploy
   build-demo.mjs        packages the standalone demo page
 tests/run.mjs           runs everything, one number
+  browser.mjs           where Playwright is, resolved at run time not baked in
+  pdftest.mjs           a real 3-page Hebrew קרנית form, end to end
+  karnit-form.pdf       that form — blank, public, no personal data
 ```
 
 **The catalogue is generated, never hand-written.** `--check` fails CI when
@@ -217,6 +220,18 @@ Risks: `docs/READINESS.md`.
   Hebrew then renders as mojibake on any host that does not send the charset itself.
 - **Test fixtures must not hardcode dates.** One asserted "4 days out" and silently
   rotted.
+- **Nor hardcode paths.** Twenty browser suites imported Playwright from an absolute
+  path inside the container they were written in, so all twenty crashed on CI — and a
+  crash reports zero passed and zero failed, which on the summary line looks almost
+  exactly like a suite that had nothing to say. `tests/browser.mjs` resolves it now,
+  and `run.mjs` prints why a suite crashed.
+- **Assert through the key the app actually writes.** One assertion read
+  `localStorage['klaser.cases']`, which has never existed — the app writes
+  `klaser.v1`, holding `{lang, cases}`. It read `undefined`, asserted nothing, and
+  passed on every run.
+- **A high-confidence read is not the same as a useful one.** A blank claim form
+  reads perfectly and contains no checklist, because the list of attachments is for
+  the claimant to write. Charging a credit for that charges for an empty list.
 
 ---
 
@@ -236,6 +251,12 @@ Risks: `docs/READINESS.md`.
    *before* public launch: a service that reads your government letters sits far
    closer to the "acting on behalf of the state" test than a checklist app does.
 
+**Known content gap:** קרנית — the road-accident compensation fund — is not one of
+the nine agencies in the catalogue, and it is exactly the kind of body an oleh meets
+without warning. A letter from it files under `other`, which is honest but not
+useful. Adding an agency needs its name in four languages, so it is a content
+decision rather than a code one. `tests/pdftest.mjs` pins the current behaviour.
+
 **Rollout gate (workstream F):** recall ≥ 0.90 · false-add ≤ 0.05 · agency ≥ 0.95 ·
 deadline exact ≥ 0.90.
 
@@ -244,7 +265,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 554 assertions
+node tests/run.mjs                                # 582 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway

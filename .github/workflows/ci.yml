@@ -21,8 +21,13 @@ jobs:
           node -e "for (const f of ['contracts/catalogue.json','contracts/analysis.schema.json','contracts/formmap.schema.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
           npx --yes js-yaml contracts/openapi.yaml > /dev/null
 
-      - name: Install browser
-        run: npx --yes playwright@latest install --with-deps chromium
+      # Both halves are needed: the browsers, and the module the suites import.
+      # --no-save keeps package.json dependency-free, which is the point of the
+      # app having no build step; the tests are the only thing that needs this.
+      - name: Install Playwright
+        run: |
+          npm i --no-save playwright@latest
+          npx playwright install --with-deps chromium
 
       - name: Test
         run: node tests/run.mjs

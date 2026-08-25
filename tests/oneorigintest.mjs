@@ -4,7 +4,7 @@
  * test. If the flow works, it is because the Worker told the page where the API
  * is, which is exactly what happens on Cloudflare.
  */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import { spawn } from 'node:child_process';
 const ROOT = new URL('..', import.meta.url).pathname;
 const HERE = new URL('.', import.meta.url).pathname;

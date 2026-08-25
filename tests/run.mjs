@@ -12,7 +12,9 @@ const http = spawn('python3', ['-m', 'http.server', '8099', '--bind', '127.0.0.1
 await new Promise(r => setTimeout(r, 1200));
 
 let pass = 0, fail = 0, crashed = [];
-const files = readdirSync(HERE).filter(f => f.endsWith('.mjs') && f !== 'run.mjs').sort();
+/* browser.mjs is the Playwright resolver the suites import, not a suite. */
+const HELPERS = new Set(['run.mjs', 'browser.mjs']);
+const files = readdirSync(HERE).filter(f => f.endsWith('.mjs') && !HELPERS.has(f)).sort();
 
 for (const f of files) {
   const r = spawnSync('node', [HERE + f], { encoding: 'utf8' });
@@ -25,6 +27,13 @@ for (const f of files) {
   if (r.status !== 0 && F === 0) crashed.push(f);
   console.log(`${f.padEnd(22)} ${String(P).padStart(3)} passed  ${String(F).padStart(2)} failed${r.status ? '  (exit ' + r.status + ')' : ''}`);
   if (F) console.log(out.split('\n').filter(l => /^\s*(FAIL|✗)/.test(l)).map(l => '    ' + l).join('\n'));
+  /* A crashed suite reports zero passed and zero failed, which on this summary
+     reads almost exactly like a suite that had nothing to say. That is how twenty
+     browser suites went missing in CI without anyone noticing, so a crash now
+     prints why. */
+  if (r.status !== 0 && F === 0) {
+    console.log(out.trim().split('\n').slice(0, 6).map(l => '    ' + l).join('\n'));
+  }
 }
 
 http.kill();

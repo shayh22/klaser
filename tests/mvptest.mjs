@@ -1,7 +1,7 @@
 /* End-to-end MVP: scan a letter -> checklist -> collect -> fill the form.
    Runs the real Worker handler and the real page. Nothing is stubbed inside the
    app; only the model provider is the mock adapter. */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 

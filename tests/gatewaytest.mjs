@@ -12,7 +12,7 @@
  * (whether the schema was enforced, and whether the checklist survives it) are only
  * visible from the far end, in the review sheet the user actually ticks.
  */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { createApp } from '../server/index.js';
@@ -142,8 +142,13 @@ const card = await page.textContent('.case');
 ok('the case is filed under the right agency', card.includes('ביטוח לאומי'));
 ok('the checklist landed in the case', card.includes('תעודת זהות') && card.includes('תעודת לידה מתורגמת'));
 ok('the invented document did not land either', !card.includes('שובר ארנונה'));
-ok('the case carries no invented deadline', await page.evaluate(() =>
-  !(JSON.parse(localStorage.getItem('klaser.cases') || '[]')[0] || {}).deadline));
+/* Read through the key the app actually writes — 'klaser.v1', holding {lang, cases}.
+   An earlier version of this line read a key that has never existed, so it asserted
+   nothing about an undefined case and passed on every run. */
+const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('klaser.v1') || '{}').cases || []);
+ok('exactly one case was stored', saved.length === 1);
+ok('the case carries no invented deadline', !saved[0].deadline);
+ok('the two surviving documents were written to it', saved[0].docs.length === 3);
 
 /* ---- one tap undoes it ---- */
 ok('undo is offered', (await page.textContent('#aiActions')).length > 0);

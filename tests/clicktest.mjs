@@ -1,4 +1,4 @@
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from './browser.mjs';
 const b=await chromium.launch();
 const ctx=await b.newContext({viewport:{width:375,height:812}});
 // the real site is blocked by the sandbox proxy; intercept so we can see the
