@@ -30,6 +30,16 @@ run_worker_first = true
 # database_id = "PASTE_THE_ID_FROM_THE_DASHBOARD"
 # migrations_dir = "migrations"
 
+# Without this, every deploy DELETES any variable set in the dashboard that is not
+# also listed below — and each Cloudflare build runs `wrangler deploy`. A provider
+# key added through the dashboard as a plain variable therefore survives until the
+# next push and then silently vanishes, leaving the service answering from fixtures
+# with no error anywhere to explain it. That is exactly how this deployment came up
+# on the mock with a key configured.
+# Secrets were never affected; variables were. With keep_vars, both survive, so a
+# key pasted into the dashboard works whichever type was chosen.
+keep_vars = true
+
 [vars]
 FREE_CREDITS = "10"
 DAILY_SPEND_CAP_USD = "25"
@@ -61,7 +71,9 @@ KILL_SWITCH = ""
 #   OPENROUTER_DATA_COLLECTION = "deny"  # "allow" permits providers that store data
 #   OPENROUTER_SITE_URL = "https://…"    # attribution only
 
-# Secrets, set with `wrangler secret put` or pasted in the dashboard:
+# Secrets, set with `wrangler secret put` or pasted in the dashboard under
+# Settings -> Variables and Secrets. NOT under Settings -> Builds: build variables
+# exist only while the build runs, and the deployed Worker cannot see them.
 #   OPENROUTER_API_KEY  — one key, many models; preferred when both are present
 #   ANTHROPIC_API_KEY   — talking to Anthropic directly instead
 #   TURNSTILE_SECRET    — optional; without it token issuance is ungated

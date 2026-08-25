@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**625 assertions, 0 failures (`node tests/run.mjs`).**
+**627 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -271,6 +271,13 @@ Risks: `docs/READINESS.md`.
 - **A high-confidence read is not the same as a useful one.** A blank claim form
   reads perfectly and contains no checklist, because the list of attachments is for
   the claimant to write. Charging a credit for that charges for an empty list.
+- **`wrangler deploy` deletes dashboard variables that are not in `[vars]`** — and
+  every Cloudflare build runs it. A provider key pasted into the dashboard as a
+  plain variable therefore worked until the next push and then silently vanished,
+  leaving the service on fixtures with nothing anywhere to explain it. `keep_vars =
+  true` stops it; `tests/oneorigintest.mjs` asserts both that line and
+  `run_worker_first`, the two settings whose absence disables the feature in total
+  silence. Secrets were never affected — only variables.
 - **A service answering from fixtures must say so.** Demo mode has always carried a
   banner because "a canned answer that looked like a real one would be the single
   most misleading thing this app could do". A deployment with no provider key does
@@ -308,7 +315,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 625 assertions
+node tests/run.mjs                                # 627 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway

@@ -6,6 +6,7 @@
  */
 import { chromium } from './browser.mjs';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const HERE = new URL('.', import.meta.url).pathname;
 const BASE = 'http://127.0.0.1:8790';
@@ -69,6 +70,21 @@ const css = await fetch(BASE + '/contracts/catalogue.json');
 ok('static files serve from the Worker', css.status === 200);
 const miss = await fetch(BASE + '/nope-does-not-exist');
 ok('a genuine miss is still a 404', miss.status === 404);
+
+/* ---- the two lines in wrangler.toml that decide whether any of this works ---- */
+const toml = readFileSync(ROOT + 'wrangler.toml', 'utf8');
+/* Without run_worker_first, Cloudflare serves the static files directly, the Worker
+   never sees the HTML, and the endpoint is never injected — the feature is simply
+   off, with nothing anywhere to say why. */
+ok('the Worker sees requests before the static assets do',
+   /^\s*run_worker_first\s*=\s*true/m.test(toml));
+/* Without keep_vars, every deploy deletes any dashboard variable not listed in
+   [vars] — and each Cloudflare build runs `wrangler deploy`. A provider key added
+   through the dashboard as a plain variable survives until the next push and then
+   vanishes, leaving the service on fixtures with no error to explain it. That is
+   how this deployment first came up on the mock with a key configured. */
+ok('a deploy does not delete variables set in the dashboard',
+   /^\s*keep_vars\s*=\s*true/m.test(toml));
 
 errs.forEach(e => console.log('    ' + e));
 ok('no console or page errors', errs.length === 0);
