@@ -99,10 +99,59 @@ Through OpenRouter that cap counts **what was actually charged** — the gateway
 reports the real cost per request — rather than a price table that goes stale the day
 a model is repriced.
 
-## First run — one command
+## Can I test on the free models?
+
+Short answer: **no, not with this service's routing on** — and buying $5 of credit is
+the cheaper path anyway.
+
+`:free` model endpoints are free largely because the provider may log, train on, or
+publish what you send them. That is the opposite of what every request here asks for,
+so `zdr: true` + `data_collection: "deny"` filters all of them out and the gateway
+returns a 404 reading *"No endpoints available matching your guardrail restrictions
+and data policy"*. OpenRouter has a support article about exactly that 404. It is not
+a broken key.
+
+The free tier is also capped at **20 requests a minute and 50 a day** until $10 of
+credit has been bought once (which permanently raises the daily cap to 1,000), and
+each letter costs two requests. And the free roster rarely overlaps with what this
+needs at all: vision **and** strict structured output **and** decent Hebrew.
+
+So:
+
+- **To check the plumbing without spending anything meaningful** — `npm run preflight`
+  below costs a fraction of a cent and answers every question a free model would have.
+- **To test on letters you wrote yourself**, free models are fine if you relax the
+  routing deliberately:
+
+  ```bash
+  OPENROUTER_ZDR=0 OPENROUTER_DATA_COLLECTION=allow \
+    OPENROUTER_MODEL_READ=… OPENROUTER_API_KEY=sk-or-… node tools/preflight.mjs
+  ```
+
+  **Never with a real person's letter.** Those two variables are the entire privacy
+  position of this product; turning them off sends somebody's benefits claim to a
+  provider that may publish it. Only ever set them on a command line, never in the
+  Cloudflare dashboard.
+
+## First run — 30 seconds, a fraction of a cent
 
 ```bash
 cd klaser
+OPENROUTER_API_KEY=sk-or-… npm run preflight
+```
+
+Five questions, asked separately so each answer is unambiguous: is the key valid and
+funded, does each model slug still exist, does the privacy routing leave any provider
+able to serve it, does the read model accept an image, and does it accept a PDF. Each
+failure prints the thing to change rather than a status code.
+
+The last two matter most. A too-narrow routing policy returns a 404 that reads like a
+missing model, and a wrong PDF shape returns a confident answer about a blank page —
+neither is obvious from the pipeline's own error.
+
+## Then the real thing
+
+```bash
 OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs
 ```
 

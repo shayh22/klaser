@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**529 assertions, 0 failures (`node tests/run.mjs`).**
+**554 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -63,6 +63,7 @@ server/                 Cloudflare Worker: serves the app AND the API from one o
   assets.js             serves the page and injects the endpoint into it
 tools/
   extract-catalogue.mjs generates contracts/catalogue.json FROM index.html
+  preflight.mjs         key, slugs, routing, image and PDF — five checks, ~$0.001
   probe-live.mjs        one real API call, reported in detail
   build-dist.mjs        assembles dist/ for deploy
   build-demo.mjs        packages the standalone demo page
@@ -108,9 +109,17 @@ the tokens. That is what `server/validate.js` is for.
 
 ### The immediate next step
 
-`tools/probe-live.mjs` — one real call through the exact selection the Worker uses.
-**Expect it to fail in some specific way** — see below. Read the `dropped` line:
-anything but 0 on a first run means the schema is being asked for and not enforced.
+`npm run preflight`, then `tools/probe-live.mjs`. The first asks the five things that
+can be wrong separately — key, each slug, whether the routing leaves a provider,
+image, PDF — for about a tenth of a cent, so a failure names itself instead of
+arriving as one error from a two-call pipeline. The second runs the real thing.
+**Expect something to fail** — see below. Read the `dropped` line: anything but 0 on
+a first run means the schema is being asked for and not enforced.
+
+**Free models are not a way to test this.** They are free because the provider may
+log, train on or publish the input, so `zdr` + `data_collection: deny` filters every
+one of them out and the gateway 404s. That is the routing working. $5 of credit is
+the whole bring-up.
 
 ### What is unverified
 
@@ -235,8 +244,9 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 529 assertions
+node tests/run.mjs                                # 554 assertions
 node server/dev.js                                # mock provider, no key needed
+OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway
 ANTHROPIC_API_KEY=sk-ant-… node server/dev.js     # real models, Anthropic direct
 OPENROUTER_API_KEY=sk-or-… node tools/probe-live.mjs [letter.jpg|letter.pdf]
