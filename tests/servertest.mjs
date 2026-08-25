@@ -10,6 +10,13 @@ const ok=(c,m)=>{ c?pass++:(fail++,console.log('  FAIL '+m)); };
 
 const h = await (await call('/v1/health')).json();
 ok(h.status==='ok','health ok'); ok(h.provider==='mock','mock provider'); ok(h.accepts_analysis===true,'accepting');
+// why that provider, not just which one — "mock" on a deployment that has a key
+// looks identical whether the secret was never saved, was overwritten by [vars] on
+// the next deploy, or sits in the build environment the runtime cannot see
+ok(h.config && h.config.openrouter_key===false,'health says no gateway key is visible');
+ok(h.config.anthropic_key===false,'and no direct key either');
+ok(h.config.ai_provider===null,'and nothing overrode the choice');
+ok(!JSON.stringify(h).includes('sk-'),'no key material anywhere in the response');
 
 const tok = await (await call('/v1/token',{method:'POST',body:'{}'})).json();
 ok(!!tok.token,'token issued'); ok(tok.quota.limit===10,'10 credits'); ok(tok.quota.remaining===10,'10 remaining');

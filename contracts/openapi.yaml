@@ -57,11 +57,44 @@ paths:
                   catalogue_version:
                     type: integer
                     description: Client refetches nothing — this is for support and eval bookkeeping.
+                  provider:
+                    type: string
+                    enum: [openrouter, anthropic, mock]
+                    description: |
+                      Which provider answered. `mock` means the service is serving the
+                      Hebrew fixtures the test suite uses — plausible, confident, and
+                      nothing to do with the user's document. The client shows a banner
+                      saying so.
+                  config:
+                    type: object
+                    description: |
+                      Why that provider, not just which one. Presence booleans about
+                      the deployment's configuration — never a value, and nothing that
+                      `provider` did not already imply.
+
+                      `provider: mock` on a deployment that has a key configured is the
+                      most confusing state this service has, and it looks identical
+                      whether the secret was never saved, was saved as a plain variable
+                      and then overwritten by the [vars] block on the next deploy, was
+                      put in the build-time environment where the runtime cannot see
+                      it, or whether AI_PROVIDER overrode everything. Each has a
+                      different fix, and none of them is visible from outside.
+                    properties:
+                      openrouter_key: { type: boolean }
+                      anthropic_key:  { type: boolean }
+                      ai_provider:    { type: [string, 'null'] }
+                      db:             { type: boolean }
               example:
                 status: ok
                 accepts_analysis: true
                 reason: null
                 catalogue_version: 1
+                provider: openrouter
+                config:
+                  openrouter_key: true
+                  anthropic_key: false
+                  ai_provider: null
+                  db: true
 
   /v1/token:
     post:
