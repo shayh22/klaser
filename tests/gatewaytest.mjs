@@ -36,12 +36,13 @@ const IDENT = { is_letter: true, agency: 'btl', form_code: 'בל/5020',
 const READ = {
   agency: 'btl', agency_child: null, template: 'child_allowance',
   required_docs: [
-    { key: 'teudat_zehut', evidence: 'צילום תעודת זהות של שני ההורים', confidence: 0.96 },
-    { key: 'bank_confirm', evidence: 'אישור ניהול חשבון בנק על שם התובע', confidence: 0.95 },
-    { key: 'shovar_arnona_2049', evidence: 'נדרש שובר ארנונה', confidence: 0.99 }
-  ],
-  extra_docs: [
-    { he: 'תעודת לידה מתורגמת', evidence: 'עבור ילד שנולד מחוץ לישראל', confidence: 0.72 }
+    { key: 'teudat_zehut', he: 'תעודת זהות', evidence: 'צילום תעודת זהות של שני ההורים', confidence: 0.96 },
+    { key: 'bank_confirm', he: 'אישור ניהול חשבון', evidence: 'אישור ניהול חשבון בנק על שם התובע', confidence: 0.95 },
+    /* a key the catalogue has never heard of: the document survives, under its name */
+    { key: 'shovar_arnona_2049', he: 'שובר ארנונה', evidence: 'נדרש שובר ארנונה', confidence: 0.99 },
+    { key: null, he: 'תעודת לידה מתורגמת', evidence: 'עבור ילד שנולד מחוץ לישראל', confidence: 0.72 },
+    /* no quote behind it — this is the one that must not survive */
+    { key: null, he: 'אישור שאיננו כתוב באף מקום', evidence: '', confidence: 0.99 }
   ],
   deadline: 'תוך 30 יום', letter_date: '2026-08-02', reference: '304-882-1177',
   form_code: 'בל/5020', form_title_he: 'בקשה לקצבת ילדים',
@@ -125,14 +126,16 @@ ok('the review lists the documents the letter asked for',
   body.includes('תעודת זהות') && body.includes('אישור ניהול חשבון'));
 ok('the review quotes the letter for each one',
   body.includes('צילום תעודת זהות של שני ההורים'));
-ok('the unrecognised document is offered, and flagged as such',
-  body.includes('תעודת לידה מתורגמת') && body.includes('לא מזוהה'));
+ok('a document with no catalogue key is offered by its hebrew name',
+  body.includes('תעודת לידה מתורגמת'));
 ok('the reference number is shown character for character', body.includes('304-882-1177'));
 
-/* the two the gateway got wrong */
-ok('the invented document never reaches the user', !body.includes('שובר ארנונה'));
+/* An unlisted key is no longer a reason to discard the document — the catalogue
+   translates, it does not permit. What still holds is the quote. */
+ok('a document with an unlisted key survives, under its own name', body.includes('שובר ארנונה'));
+ok('a document with nothing quoted behind it does not', !body.includes('אישור שאיננו כתוב'));
 ok('the prose deadline is not shown as a deadline', !body.includes('תוך 30 יום'));
-ok('three items offered, not four', (await page.$$('#aiBody [data-pick]')).length === 3);
+ok('four items offered, not five', (await page.$$('#aiBody [data-pick]')).length === 4);
 
 /* ---- tick them into a case ---- */
 await page.click('#aiActions button:nth-child(1)');          // add
@@ -141,20 +144,64 @@ ok('a case was created', (await page.$$('.case')).length === 1);
 const card = await page.textContent('.case');
 ok('the case is filed under the right agency', card.includes('ביטוח לאומי'));
 ok('the checklist landed in the case', card.includes('תעודת זהות') && card.includes('תעודת לידה מתורגמת'));
-ok('the invented document did not land either', !card.includes('שובר ארנונה'));
+ok('so did the one the shared list had never heard of', card.includes('שובר ארנונה'));
 /* Read through the key the app actually writes — 'klaser.v1', holding {lang, cases}.
    An earlier version of this line read a key that has never existed, so it asserted
    nothing about an undefined case and passed on every run. */
 const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('klaser.v1') || '{}').cases || []);
 ok('exactly one case was stored', saved.length === 1);
 ok('the case carries no invented deadline', !saved[0].deadline);
-ok('the two surviving documents were written to it', saved[0].docs.length === 3);
+ok('all four surviving documents were written to it', saved[0].docs.length === 4);
+/* the two with no catalogue key became this user's own vocabulary, so the next
+   letter naming them is recognised rather than re-read as a stranger */
+const mine = await page.evaluate(() => JSON.parse(localStorage.getItem('klaser.v1') || '{}').mine || {});
+ok('the unlisted documents were saved as the user\'s own',
+  Object.values(mine.docs || {}).some(d => d.he === 'שובר ארנונה'));
 
 /* ---- one tap undoes it ---- */
 ok('undo is offered', (await page.textContent('#aiActions')).length > 0);
 await page.click('#aiActions button:nth-child(1)');          // undo (danger, first)
 await page.waitForTimeout(300);
 ok('undo removes the case entirely', (await page.$$('.case')).length === 0);
+/* Undo reaches the vocabulary too. One tap of "undo that" must not leave behind a
+   landlord the user never agreed to save — and must not keep sending it. */
+const afterUndo = await page.evaluate(() => JSON.parse(localStorage.getItem('klaser.v1') || '{}').mine || {});
+ok('undo also unlearns what the add taught',
+  !Object.values(afterUndo.docs || {}).some(d => d.he === 'שובר ארנונה'));
+
+/* ---- the point of saving them: the next scan carries them ----
+   A name the user kept has to become a key the model may answer with, or "adding
+   your own" is a local relabelling the reader never learns. Undo just unlearned
+   everything, so this re-adds first — which is also the proof that re-learning
+   works after an undo. */
+await page.setInputFiles('#letterInput', HERE + 'doc1.jpg');
+await page.waitForTimeout(300);
+await page.waitForFunction(() =>
+  document.querySelector('#aiBody')?.textContent.includes('בדקו לפני'), null, { timeout: 8000 });
+await page.click('#aiActions button:nth-child(1)');          // add again
+await page.waitForTimeout(400);
+const relearned = await page.evaluate(() => JSON.parse(localStorage.getItem('klaser.v1') || '{}').mine || {});
+ok('a name can be learned again after an undo',
+  Object.values(relearned.docs || {}).some(d => d.he === 'שובר ארנונה'));
+
+upstream.length = 0;
+await page.setInputFiles('#letterInput', HERE + 'doc1.jpg');
+await page.waitForTimeout(300);
+await page.waitForFunction(() =>
+  document.querySelector('#aiBody')?.textContent.includes('בדקו לפני'), null, { timeout: 8000 });
+
+const second = upstream[1];
+const vocabText = second.messages[1].content.map(c => c.text || '').join('\n');
+ok('the next scan carries the names the user kept', vocabText.includes('שובר ארנונה'));
+ok('they become keys the model may answer with',
+  second.response_format.json_schema.schema.properties.required_docs.items.properties.key.enum
+    .some(k => typeof k === 'string' && k.startsWith('own_')));
+/* The shared block must stay byte-identical, or every user loses the prompt cache
+   the moment they save their first name. */
+ok('the shared catalogue block is untouched',
+  second.messages[0].content[1].text === upstream[0].messages[0].content[1].text);
+ok('the user vocabulary rides with the instruction, not the cached block',
+  !second.messages[0].content[1].text.includes('שובר ארנונה'));
 
 /* ---- with the endpoint gone, the app is the app it was before ---- */
 const plain = await browser.newContext();

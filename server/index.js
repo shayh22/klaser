@@ -6,6 +6,7 @@
 
 import { ApiError, errorResponse, json } from './errors.js';
 import { MemoryStore, D1Store } from './store.js';
+import { sanitiseExtras } from './validate.js';
 import { createAnalyzer } from './analyze.js';
 import { createAnthropicAdapter } from './adapters/anthropic.js';
 import { createOpenRouterAdapter } from './adapters/openrouter.js';
@@ -103,7 +104,13 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
 
         if (row.used >= row.limit) throw new ApiError('quota_exhausted');
 
-        const out = await analyze({ image: body.image, mediaType, hint: body.hint });
+        /* The user's own agency and document names, sent with their own document so
+           the model can recognise next month what they named this month. Bounded and
+           scrubbed before it goes anywhere near a prompt, and stored nowhere: it
+           arrives with the request and leaves with the response. */
+        const extras = sanitiseExtras(body.extras);
+
+        const out = await analyze({ image: body.image, mediaType, hint: body.hint, extras });
 
         await store.addSpend(out.costUsd || 0);
         const quota = out.credits
@@ -119,6 +126,9 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
              it is a provider that stopped honouring the schema, seen here rather
              than in somebody's checklist. */
           dropped: out.meta.dropped || 0,
+          /* How much vocabulary this user brought. A count, never the names. */
+          extra_agencies: (extras && extras.agencies || []).length,
+          extra_docs: (extras && extras.docs || []).length,
           conf: out.result.confidence, latency_ms: out.meta.latency_ms,
           in: out.meta.input_tokens, out: out.meta.output_tokens,
           cached: out.meta.cache_read_tokens, usd: +(out.costUsd || 0).toFixed(5)

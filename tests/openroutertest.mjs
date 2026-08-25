@@ -73,8 +73,13 @@ ok('structured output requested', read.body.response_format.type === 'json_schem
 ok('schema is sent strict', js.strict === true);
 ok('schema enums come from the catalogue',
   js.schema.properties.agency.enum.includes('btl') && js.schema.properties.agency.enum.includes(null));
-ok('doc keys are constrained to the catalogue',
-  js.schema.properties.required_docs.items.properties.key.enum.length === Object.keys(catalogue.docs).length);
+/* Still an enum, so the model cannot invent a *key* — but null is now a member,
+   because "no key fits, here is the Hebrew name" is a legitimate answer. */
+ok('doc keys are still drawn from the catalogue, plus null',
+  js.schema.properties.required_docs.items.properties.key.enum.length === Object.keys(catalogue.docs).length + 1);
+ok('null is an allowed key', js.schema.properties.required_docs.items.properties.key.enum.includes(null));
+ok('a document must carry a hebrew name',
+  js.schema.properties.required_docs.items.required.includes('he'));
 ok('the model cannot invent an agency', !js.schema.properties.agency.enum.includes('made_up'));
 ok('max_tokens leaves room for the answer', read.body.max_tokens >= 2000);
 

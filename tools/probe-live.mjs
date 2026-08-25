@@ -78,7 +78,12 @@ try {
   const r = out.result;
   const check = (label, cond) => console.log((cond ? '  ok   ' : '  BAD  ') + label);
   check('agency is a catalogue key or null', r.agency === null || r.agency in catalogue.agencies);
-  check('every doc is a catalogue key', (r.required_docs || []).every(d => d.key in catalogue.docs));
+  check('the agency has a name either way', !!r.agency_he || r.agency === null);
+  /* A key is optional now — the catalogue translates, it does not permit. What every
+     document must have is a name to show and a quote to justify it. */
+  check('every doc names a catalogue key or nothing',
+    (r.required_docs || []).every(d => d.key === null || d.key in catalogue.docs));
+  check('every doc has a hebrew name', (r.required_docs || []).every(d => (d.he || '').length > 0));
   check('every doc quotes evidence', (r.required_docs || []).every(d => (d.evidence || '').length > 0));
   check('confidence is a number 0..1', typeof r.confidence === 'number' && r.confidence >= 0 && r.confidence <= 1);
   check('form_to_fill.where is set', ['self', 'separate', 'none'].includes(r.form_to_fill?.where));

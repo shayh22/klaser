@@ -30,9 +30,12 @@ ok(bt.status===401,'bad token 401');
 const r1 = await (await A(B('a photo'))).json();
 ok(r1.result.agency==='btl','agency btl');
 ok(r1.result.template==='child_allowance','template matched');
-ok(r1.result.required_docs.length===4,'4 required docs');
+// one list now: four with a catalogue key, one carried by its Hebrew name alone
+ok(r1.result.required_docs.length===5,'5 documents');
 ok(r1.result.required_docs.every(d=>d.evidence),'every doc has evidence');
-ok(r1.result.extra_docs.length===1,'1 extra doc');
+ok(r1.result.required_docs.every(d=>d.he),'every doc has a hebrew name');
+ok(r1.result.required_docs.filter(d=>d.key===null).length===1,'one has no catalogue key, and is kept anyway');
+ok(r1.result.agency_he==='ביטוח לאומי','the agency name is carried alongside the key');
 ok(r1.result.form_to_fill.where==='self','form is in the same document');
 ok(r1.meta.source==='model','source=model');
 ok(r1.meta.credits_charged===1,'charged 1 credit');

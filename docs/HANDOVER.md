@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**582 assertions, 0 failures (`node tests/run.mjs`).**
+**620 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -39,11 +39,27 @@ data, the answers live in a profile in the browser, and the join happens on-devi
 There is no endpoint that accepts a profile — `tests/mvptest.mjs` asserts at the
 network level that no request ever carried one.
 
-**2. The model returns catalogue keys, not prose.** It is given the app's own
-`AGENCIES`/`DOCS`/`TEMPLATES` and answers with keys from them. Consequences: a
-hallucinated document name is structurally impossible on the main path; all four
-languages render for free (the client translates the keys); and the output is exactly
-evaluable.
+**2. The catalogue is a hint, not a gate — and evidence is the gate.** The model gets
+the app's own `AGENCIES`/`DOCS`/`TEMPLATES` and answers with a key *when one genuinely
+fits*, which is what makes all four languages render for free. When none fits it
+answers with the Hebrew name the letter used, and that document is every bit as real.
+
+This is a reversal, and it was the stated one. The old rule was "keys only, anything
+else is discarded", whose reopening trigger in `READINESS.md` read *"a catalogue too
+small to describe real letters"*. A three-page קרנית claim form fired it: קרנית is not
+one of the nine bodies, and never will be for most people, and neither is a landlord,
+a management company, or the fund an employer uses. A vocabulary that refuses
+everything it has not heard of is useless to precisely the person this app is for.
+
+What replaced it is narrower and cheaper: **a document that cannot be quoted from the
+letter does not go on the list, whatever it is called.** That is what separates a list
+read off the page from a list guessed from the subject — and unlike a closed word
+list, it costs the user nothing. A key still buys translation; it no longer buys
+permission.
+
+Anything kept that the shared list does not carry becomes **that user's own
+vocabulary**: saved locally, carried in their backup, and sent with their next scan so
+the model recognises next month what they named this month.
 
 ---
 
@@ -147,28 +163,51 @@ structured output not in the first text block (Opus 5 emits thinking blocks firs
 the browser only ever sees a code and a Hebrew message, and a test asserts the error
 response has exactly three keys.
 
-### The catalogue check — why a third layer exists
+### The check on the answer — what it does and does not do
 
-The claim that "a hallucinated document name is structurally impossible" used to rest
-entirely on the schema in the request. That holds when the schema is enforced by the
-same service producing the tokens. Through a gateway it is not: the request *names* a
-schema, and whether it was enforced depends on which provider answered. Strict-mode
-JSON Schema also cannot express half of ours — lengths, ranges and item caps are
-dropped on the way out.
+Through a gateway the schema in the request is a request, not a guarantee: whether it
+was enforced depends on which provider answered, and strict-mode JSON Schema cannot
+express half of ours anyway — lengths, ranges and item caps are dropped on the way
+out. So `server/validate.js` runs on our side, after the answer, before anything is
+returned.
 
-So the guarantee moved somewhere it cannot be routed around. `server/validate.js`
-runs on our side, after the answer and before anything is returned:
+What it enforces:
 
-- a document key not in the catalogue is **dropped**, never renamed or guessed at
-- a document with nothing quoted from the letter is dropped — rule 2 of the prompt,
-  enforced rather than requested
+- **a document with nothing quoted from the letter is dropped**, catalogue key or
+  not. This is the whole guarantee now. Rule 2 of the prompt, enforced rather than
+  requested.
 - a deadline that is not a real calendar date becomes `null`; the client writes that
   field straight onto the case, so a wrong one is worse than none
-- ranges and lengths are re-applied; an agency or process outside the catalogue is `null`
+- ranges, lengths and list caps are re-applied
 
-`meta.dropped` counts what it refused. Zero is the normal case, and it is the number
-the evaluation set exists to watch: a provider that stops honouring the schema shows
-up in the logs before it shows up in somebody's checklist.
+What it deliberately does **not** do any more:
+
+- it does not discard a document because its key is unknown. The key is dropped and
+  the document is kept under its Hebrew name, which is the same thing the model does
+  when it knows no key fits.
+- it does not null an agency it has not heard of. `agency_he` carries the name, and
+  the client offers to save it.
+
+`meta.dropped` still counts, but it counts something different: no longer "the model
+used a word we do not know" — that is now normal — but "the model listed something it
+could not point at". Zero is the normal case.
+
+### The user's own vocabulary
+
+`/v1/analyze` accepts an `extras` object: the bodies and documents this user has
+saved, as keys and Hebrew names. Two things about it are deliberate:
+
+- **It is not folded into the cached catalogue block.** That block has to stay
+  byte-identical across users or it stops earning its prompt-cache breakpoint, so the
+  user's names ride with the instruction instead. `tests/gatewaytest.mjs` asserts the
+  shared block is untouched.
+- **It is bounded and scrubbed before it goes near a prompt** — identifier-shaped
+  keys, 80 characters a name, newlines flattened, 60 bodies and 250 documents. This is
+  user text being pasted into a system prompt; a "name" containing its own line breaks
+  is not a name.
+
+It is stored nowhere on the server. It arrives with the request and leaves with the
+response.
 
 ---
 
@@ -232,6 +271,11 @@ Risks: `docs/READINESS.md`.
 - **A high-confidence read is not the same as a useful one.** A blank claim form
   reads perfectly and contains no checklist, because the list of attachments is for
   the claimant to write. Charging a credit for that charges for an empty list.
+- **A closed vocabulary is a wrong answer dressed as a safe one.** Dropping every
+  document the catalogue had not heard of looked like rigour and was mostly just
+  refusing to help — with קרנית, with a landlord, with anything nobody had enumerated.
+  The narrower rule does the real work: drop what cannot be quoted, keep the rest
+  whatever it is called.
 
 ---
 
@@ -251,12 +295,6 @@ Risks: `docs/READINESS.md`.
    *before* public launch: a service that reads your government letters sits far
    closer to the "acting on behalf of the state" test than a checklist app does.
 
-**Known content gap:** קרנית — the road-accident compensation fund — is not one of
-the nine agencies in the catalogue, and it is exactly the kind of body an oleh meets
-without warning. A letter from it files under `other`, which is honest but not
-useful. Adding an agency needs its name in four languages, so it is a content
-decision rather than a code one. `tests/pdftest.mjs` pins the current behaviour.
-
 **Rollout gate (workstream F):** recall ≥ 0.90 · false-add ≤ 0.05 · agency ≥ 0.95 ·
 deadline exact ≥ 0.90.
 
@@ -265,7 +303,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 582 assertions
+node tests/run.mjs                                # 620 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway

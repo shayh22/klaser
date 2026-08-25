@@ -11,7 +11,7 @@
  */
 
 import { ApiError } from './errors.js';
-import { identifySystem, readSystem, catalogueBlock, analysisSchema, IDENTIFY_SCHEMA } from './prompts.js';
+import { identifySystem, readSystem, catalogueBlock, extrasBlock, analysisSchema, IDENTIFY_SCHEMA } from './prompts.js';
 import { validateAnalysis, validateIdentify } from './validate.js';
 
 /* Which model each stage costs against, when the adapter does not say. An adapter
@@ -28,18 +28,21 @@ const CONFIDENCE_FLOOR = 0.45;   /* below this nothing is proposed at all */
 const ESCALATE_BELOW   = 0.6;    /* below this, try the stronger model once */
 
 /* Impersonal by construction: agency + form code + normalised title. No recipient,
-   no reference number, no date. */
-export async function formSignature({ agency, form_code, form_title_he }) {
+   no reference number, no date.
+   Falls back to the agency's Hebrew name when no catalogue key matched, so a body
+   nobody has enumerated still gets a stable signature rather than sharing "?" with
+   every other unlisted body. */
+export async function formSignature({ agency, agency_he, form_code, form_title_he }) {
   const norm = s => (s || '').replace(/[\s‏‎"'׳״.,:;()\-–—]/g, '').slice(0, 60);
-  const basis = `${agency || '?'}|${norm(form_code)}|${norm(form_title_he)}`;
+  const basis = `${agency || norm(agency_he) || '?'}|${norm(form_code)}|${norm(form_title_he)}`;
   const bytes = new TextEncoder().encode(basis);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 const NOT_A_LETTER = {
-  agency: null, agency_child: null, template: null,
-  required_docs: [], extra_docs: [],
+  agency: null, agency_he: null, agency_child: null, template: null,
+  required_docs: [],
   deadline: null, letter_date: null, reference: null,
   form_code: null, form_title_he: null,
   form_to_fill: { where: 'none', form_code: null, form_title_he: null },
@@ -47,10 +50,17 @@ const NOT_A_LETTER = {
 };
 
 export function createAnalyzer({ adapter, catalogue, lookup = async () => null }) {
+  /* Built once: byte-identical on every request, which is what lets it carry the
+     cache breakpoint. The user's own vocabulary is deliberately NOT in here — it
+     varies per person, and folding it in would cost everyone the cache. */
   const cachedPrefix = catalogueBlock(catalogue);
-  const schema = analysisSchema(catalogue);
 
-  return async function analyze({ image, mediaType, hint }) {
+  return async function analyze({ image, mediaType, hint, extras }) {
+    /* The schema does vary per request, because a name this user saved last week is
+       a key the model may answer with today. Schemas are not cached, so this is
+       free. */
+    const schema = analysisSchema(catalogue, extras);
+    const userVocab = extrasBlock(extras);
     const started = Date.now();
     const usageTotal = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 };
     let costUsd = 0;
@@ -74,14 +84,14 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         system: identifySystem(),
         cachedPrefix,
         image, mediaType,
-        instruction: 'זהה את המסמך המצורף.',
+        instruction: withVocab('זהה את המסמך המצורף.', userVocab),
         schema: IDENTIFY_SCHEMA
       });
     } catch (e) {
       throw new ApiError('upstream_error', { detail: e.message, cause: e });
     }
     track(ident, modelFor('identify'));
-    ident.parsed = validateIdentify(ident.parsed, catalogue);
+    ident.parsed = validateIdentify(ident.parsed, catalogue, extras);
 
     if (!ident.parsed.is_letter) {
       return {
@@ -121,7 +131,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
         system: readSystem(),
         cachedPrefix,
         image, mediaType,
-        instruction: instructionFor(hint),
+        instruction: withVocab(instructionFor(hint), userVocab),
         schema
       });
     } catch (e) {
@@ -132,7 +142,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
        is between two answers that have both already lost whatever the catalogue
        does not recognise. Otherwise a confident answer full of invented keys wins
        against a modest one that was right. */
-    let checked = validateAnalysis(read.parsed, catalogue);
+    let checked = validateAnalysis(read.parsed, catalogue, extras);
     let usedModel = read.model;
 
     let escalated = false;
@@ -140,10 +150,10 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
       try {
         const up = await adapter.escalate({
           system: readSystem(), cachedPrefix, image, mediaType,
-          instruction: instructionFor(hint), schema
+          instruction: withVocab(instructionFor(hint), userVocab), schema
         });
         track(up, modelFor('escalate'));
-        const upChecked = validateAnalysis(up.parsed, catalogue);
+        const upChecked = validateAnalysis(up.parsed, catalogue, extras);
         if (upChecked.result.confidence > checked.result.confidence) {
           checked = upChecked; usedModel = up.model; escalated = true;
         }
@@ -151,10 +161,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
     }
 
     const result = checked.result;
-    if (result.confidence < CONFIDENCE_FLOOR) {
-      result.required_docs = [];
-      result.extra_docs = [];
-    }
+    if (result.confidence < CONFIDENCE_FLOOR) result.required_docs = [];
 
     /* Charged only for a read that produced something the user can act on, which
        means a confident answer AND at least one document proposed. Confidence alone
@@ -163,7 +170,7 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
        checklist in it. Billing a credit for that is billing for an empty list, which
        is the opposite of "failed reads cost nothing".
        The same argument covers the unreadable photo it was already written for. */
-    const proposed = result.required_docs.length + result.extra_docs.length;
+    const proposed = result.required_docs.length;
     const usable = result.confidence >= CONFIDENCE_FLOOR && proposed > 0;
     return {
       result,
@@ -178,6 +185,12 @@ export function createAnalyzer({ adapter, catalogue, lookup = async () => null }
       costUsd
     };
   };
+}
+
+/* The user's own names ride with the instruction rather than with the catalogue,
+   so the shared block stays byte-identical and keeps its cache. */
+function withVocab(instruction, userVocab) {
+  return userVocab ? `${userVocab}\n\n${instruction}` : instruction;
 }
 
 function instructionFor(hint) {
