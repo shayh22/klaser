@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**620 assertions, 0 failures (`node tests/run.mjs`).**
+**621 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -271,6 +271,11 @@ Risks: `docs/READINESS.md`.
 - **A high-confidence read is not the same as a useful one.** A blank claim form
   reads perfectly and contains no checklist, because the list of attachments is for
   the claimant to write. Charging a credit for that charges for an empty list.
+- **A service answering from fixtures must say so.** Demo mode has always carried a
+  banner because "a canned answer that looked like a real one would be the single
+  most misleading thing this app could do". A deployment with no provider key does
+  exactly that and said nothing, which is worse, because nobody chose it. The review
+  sheet now shows the same warning when `/v1/health` reports `provider: mock`.
 - **A closed vocabulary is a wrong answer dressed as a safe one.** Dropping every
   document the catalogue had not heard of looked like rigour and was mostly just
   refusing to help — with קרנית, with a landlord, with anything nobody had enumerated.
@@ -303,7 +308,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 620 assertions
+node tests/run.mjs                                # 621 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway

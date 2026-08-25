@@ -82,6 +82,12 @@ await page.waitForFunction(() =>
   document.querySelector('#aiBody')?.textContent.includes('בדקו לפני'), null, { timeout: 8000 });
 
 const body = await page.textContent('#aiBody');
+/* This suite runs against the mock adapter, so the review must say so. A service
+   with no provider key answers from the same fixtures the tests use — confidently,
+   and about a letter that is not the user's. Saying nothing is how somebody tests a
+   deployment, sees a plausible checklist, and concludes it works. */
+ok('a mock-backed service says its answer is canned',
+  body.includes('תשובה קבועה מראש'));
 ok('review lists the required documents', body.includes('תעודת זהות') && body.includes('אישור ניהול חשבון'));
 ok('review quotes the evidence from the letter', body.includes('צילום תעודת זהות של שני ההורים'));
 // A document the shared list does not carry is shown by the name the letter used,

@@ -801,6 +801,16 @@ const STR = {
     en:'We do not have a field map for this form yet. The details below are ready to copy onto the original.',
     ru:'У нас пока нет карты полей для этой формы. Данные ниже готовы к переносу в оригинал.'},
   fillFor:{he:'עבור',fr:'Pour',en:'For',ru:'Для'},
+  /* A deployment wired to no provider key answers from the same Hebrew fixtures the
+     test suite uses — confidently, and about a letter that is not yours. Demo mode
+     has always said so on every screen for exactly that reason; a mock-backed
+     service was saying nothing at all, which is the worse of the two because nobody
+     chose it. */
+  mockBanner:{
+    he:'\u{1F9EA} השירות עונה מתשובה קבועה מראש, לא מקריאה של המסמך שלך. כנראה לא הוגדר מפתח ספק בשרת.',
+    fr:"\u{1F9EA} Le service répond avec une réponse prédéfinie, pas une lecture de votre document. Aucune clé de fournisseur n'est probablement configurée.",
+    en:'\u{1F9EA} The service is answering from a canned fixture, not from reading your document. A provider key is probably not configured on the server.',
+    ru:'\u{1F9EA} Сервис отвечает заготовленным текстом, а не чтением вашего документа. Вероятно, на сервере не задан ключ провайдера.'},
   demoBanner:{
     he:'\u{1F9EA} מצב הדגמה — התשובה קבועה מראש על מכתב לדוגמה, ואינה קריאה אמיתית. אין צורך לצלם, ושום דבר לא נשלח לשום מקום.',
     fr:"\u{1F9EA} Mode démo — réponse prédéfinie sur un courrier d'exemple, pas une vraie lecture. Aucune photo nécessaire, rien n'est envoyé.",
@@ -1934,8 +1944,12 @@ const AI = {
 /* ---------- the modal used for consent, progress and review ---------- */
 function aiSheet(title, bodyHTML, actions){
   $('#aiTitle').textContent = title;
+  /* Whichever of the two applies. Both mean "this answer was not read off your
+     document", which is the one thing the user must not have to guess at. */
+  const canned = AI.demo ? t('demoBanner')
+               : (AI.health && AI.health.provider === 'mock') ? t('mockBanner') : '';
   $('#aiBody').innerHTML =
-    (AI.demo ? `<div class="badge problem" style="display:block;margin-bottom:9px;white-space:normal;line-height:1.45" dir="auto">${esc(t('demoBanner'))}</div>` : '')
+    (canned ? `<div class="badge problem" style="display:block;margin-bottom:9px;white-space:normal;line-height:1.45" dir="auto">${esc(canned)}</div>` : '')
     + bodyHTML;
   const bar = $('#aiActions');
   bar.innerHTML = '';
