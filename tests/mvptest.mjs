@@ -218,7 +218,20 @@ await page.waitForFunction(() => {
 }, null, { timeout: 15000 });
 const downText = await page.textContent('#aiBody');
 ok('a dead service explains itself in Hebrew', /לא זמין|השתבש|ממשיך/.test(downText));
-await page.click('#aiActions button');
+/* The Hebrew sentence is right for the person filing a claim and useless for the
+   person who deployed this and is now looking at a phone. Our own error code is
+   safe to show — the provider's words never leave the server — and it is the
+   difference between a report that can be acted on and "it says unavailable". */
+/* The code shown is ours, not the browser's: "Failed to fetch" in Chrome,
+   "NetworkError…" in Firefox, something else again on iOS. A code someone can quote
+   in a report has to mean the same thing everywhere. */
+ok('the failure carries a stable code, not the browser wording', /\bnetwork\b/.test(downText));
+ok('and not the browser wording', !/Failed to fetch|NetworkError/.test(downText));
+const downButtons = await page.$$eval('#aiActions button', bs => bs.map(b => b.textContent));
+/* No connection check here: if the browser cannot reach the service at all, a check
+   that asks the service the same question fails the same way and explains nothing. */
+ok('an unreachable service offers no remote check', !downButtons.some(t => /בדיקת חיבור/.test(t)));
+await page.click('#aiActions button:last-child');
 await page.waitForTimeout(200);
 ok('the case list is untouched by the failure', (await page.$$('.case')).length === 1);
 
