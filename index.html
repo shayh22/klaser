@@ -775,6 +775,16 @@ const STR = {
      suspicious; it simply has no translation yet, so it shows in the Hebrew the
      letter used. Only shown when the interface is not in Hebrew, where the
      difference is visible. */
+  /* The error sheet says what happened in Hebrew and nothing more, on purpose: the
+     upstream's words never reach the browser. That is right for a user and useless
+     for whoever deployed it, who then has to find the Cloudflare logs on a phone.
+     This runs the same five checks the command-line tool runs, from the sheet. */
+  aiWhy:{he:'בדיקת חיבור',fr:'Tester la connexion',en:'Test the connection',ru:'Проверить соединение'},
+  aiWhyRunning:{he:'בודק…',fr:'Test en cours…',en:'Testing…',ru:'Проверка…'},
+  aiWhyOk:{he:'כל הבדיקות עברו. התקלה כנראה זמנית — נסו שוב.',
+    fr:'Tous les tests passent. La panne est probablement passagère — réessayez.',
+    en:'Every check passed. The failure is probably transient — try again.',
+    ru:'Все проверки пройдены. Сбой, вероятно, временный — попробуйте снова.'},
   docAsWritten:{he:'כלשון המכתב',fr:'Tel qu\u2019écrit dans le courrier',en:'As written in the letter',ru:'Как указано в письме'},
   reviewAdd:{he:'הוסף לתיק',fr:'Ajouter au dossier',en:'Add to case',ru:'Добавить в дело'},
   reviewNothing:{he:'לא נמצאו מסמכים לאסוף.',fr:'Aucun document à rassembler.',en:'No documents to collect were found.',ru:'Документы для сбора не найдены.'},
@@ -1885,11 +1895,17 @@ const AI = {
     if(this.token) return this.token;
     try{ this.token = localStorage.getItem('klaser.aitoken') || null; }catch{}
     if(this.token) return this.token;
-    const r = await fetch(this.url('/v1/token'), {
-      method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({turnstile_token:''})
-    });
-    if(!r.ok) throw new Error('token');
+    /* "Failed to fetch" in Chrome, "NetworkError when attempting to fetch" in
+       Firefox, something else again on iOS. A code the user can quote has to be
+       ours, not the browser's. */
+    let r;
+    try{
+      r = await fetch(this.url('/v1/token'), {
+        method:'POST', headers:{'content-type':'application/json'},
+        body: JSON.stringify({turnstile_token:''})
+      });
+    }catch{ const e = new Error('network'); e.code = 'network'; throw e; }
+    if(!r.ok){ const e = new Error('token'); e.code = 'token'; throw e; }
     const d = await r.json();
     this.token = d.token; this.quota = d.quota;
     try{ localStorage.setItem('klaser.aitoken', d.token); }catch{}
@@ -1910,7 +1926,9 @@ const AI = {
     }
     const token = await this.getToken();
     const b64 = (await blobToDataURL(blob)).split(',')[1];
-    const r = await fetch(this.url('/v1/analyze'), {
+    let r;
+    try{
+      r = await fetch(this.url('/v1/analyze'), {
       method:'POST',
       headers:{'content-type':'application/json', authorization:'Bearer '+token},
       body: JSON.stringify({
@@ -1925,7 +1943,8 @@ const AI = {
            second letter from the same landlord recognised rather than re-typed. */
         extras: myVocabulary()
       })
-    });
+      });
+    }catch{ const e = new Error('network'); e.code = 'network'; throw e; }
     const data = await r.json().catch(()=>({}));
     if(!r.ok){
       if(data.error && data.error.code === 'invalid_token'){
@@ -1933,6 +1952,7 @@ const AI = {
         this.token = null;
       }
       const e = new Error(data.error ? data.error.code : 'http_'+r.status);
+      e.code = e.message;
       e.he = data.error ? data.error.message_he : t('aiUnavailable');
       throw e;
     }
@@ -2157,10 +2177,57 @@ async function runLetterScan(file, targetCaseId){
     const data = await AI.analyze(blob, hint);
     showReview(data, targetCaseId);
   }catch(err){
-    aiSheet(t('aiConsentTitle'),
-      `<p dir="auto">${esc(err.he || t('aiUnavailable'))}</p>`,
-      [{label:t('scanClose'), primary:true, on:aiClose}]);
+    showScanError(err);
   }
+}
+
+/* The failure, plus a way to find out what caused it.
+   `err.message` is our own error code — never the provider's words, which stay
+   server-side — and it is what makes a report actionable instead of "it says it is
+   unavailable". */
+function showScanError(err){
+  const code = err && (err.code || err.message) ? String(err.code || err.message).slice(0,40) : '';
+  const body = `<p dir="auto">${esc(err.he || t('aiUnavailable'))}</p>`
+    + (code ? `<p style="font-size:12px;color:var(--ink-faint);margin-top:6px" dir="ltr">${esc(code)}</p>` : '');
+  const actions = [{label:t('scanClose'), primary:true, on:aiClose}];
+  /* Only worth offering when the provider is what failed. A missing consent or an
+     oversized file has nothing to diagnose. */
+  /* Not for `network`: if the browser cannot reach the service at all, a check that
+     asks the service the same question fails the same way and explains nothing. */
+  if(code === 'upstream_error' || code === 'service_degraded' || code.startsWith('http_')){
+    actions.unshift({label:t('aiWhy'), on:runConnectionCheck});
+  }
+  aiSheet(t('aiConsentTitle'), body, actions);
+}
+
+async function runConnectionCheck(){
+  aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('aiWhyRunning'))}</p>`, []);
+  let d;
+  try{
+    const r = await fetch(AI.url('/v1/preflight'));
+    d = await r.json();
+  }catch{
+    aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(t('aiUnavailable'))}</p>`,
+      [{label:t('scanClose'), primary:true, on:aiClose}]);
+    return;
+  }
+  if(d.error){
+    aiSheet(t('aiConsentTitle'), `<p dir="auto">${esc(d.error.message_he || t('aiUnavailable'))}</p>`,
+      [{label:t('scanClose'), primary:true, on:aiClose}]);
+    return;
+  }
+  /* The advice is in English because it names variables and URLs to change; whoever
+     is reading it is the person who deployed this, not the person filing a claim. */
+  const rows = (d.checks||[]).map(c => `
+    <div style="padding:6px 0;border-bottom:1px solid var(--rule)">
+      <div><span style="font-weight:700">${c.ok?'\u2713':'\u2717'}</span>
+        <span dir="ltr" style="font-family:ui-monospace,monospace;font-size:12px">${esc(c.name)}${c.model?' · '+esc(c.model):''}</span></div>
+      ${c.ok?'':`<div style="font-size:12px;color:var(--ink-soft);margin-top:2px" dir="ltr">${esc(c.why||'')}</div>
+                 <div style="font-size:12px;color:var(--ink-soft)" dir="ltr">\u2192 ${esc(c.fix||'')}</div>`}
+    </div>`).join('');
+  aiSheet(t('aiConsentTitle'),
+    (d.ok?`<p dir="auto">${esc(t('aiWhyOk'))}</p>`:'') + rows,
+    [{label:t('scanClose'), primary:true, on:aiClose}]);
 }
 
 let letterTarget = null;

@@ -203,6 +203,72 @@ ok('the shared catalogue block is untouched',
 ok('the user vocabulary rides with the instruction, not the cached block',
   !second.messages[0].content[1].text.includes('שובר ארנונה'));
 
+/* ---- the failure the deployment actually hit ----
+   A gateway that rejects the request gives the browser a Hebrew sentence and nothing
+   else, on purpose. That is right for someone filing a claim and useless for whoever
+   deployed it, so the sheet also carries our own error code and offers to run the
+   five checks against the service. */
+let gatewayDown = true;
+const savedFetch = gateway;
+const rejectAll = async (u, o) => gatewayDown
+  ? ({ ok: false, status: 404,
+       text: async () => 'No endpoints available matching your guardrail restrictions and data policy' })
+  : savedFetch(u, o);
+const failing = createApp({
+  catalogue,
+  adapter: createOpenRouterAdapter({ apiKey: 'sk-or-test', fetchImpl: rejectAll }),
+  /* the preflight route talks to the gateway itself, so it needs the stub too */
+  fetchImpl: rejectAll,
+  env: { FREE_CREDITS: '10', OPENROUTER_API_KEY: 'sk-or-test' }
+});
+const failPort = 8796;
+const failSrv = createServer(async (req, res) => {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const request = new Request('http://127.0.0.1:' + failPort + req.url, {
+    method: req.method, headers: req.headers,
+    body: (req.method === 'GET' || req.method === 'HEAD') ? undefined : Buffer.concat(chunks)
+  });
+  const out = await failing(request);
+  res.writeHead(out.status, Object.fromEntries(out.headers));
+  res.end(Buffer.from(await out.arrayBuffer()));
+});
+await new Promise(r => failSrv.listen(failPort, '127.0.0.1', r));
+
+const fctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const fp = await fctx.newPage();
+await fp.addInitScript(e => { window.KLASER_AI_ENDPOINT = e; }, 'http://127.0.0.1:' + failPort);
+await fp.goto(APP, { waitUntil: 'load' });
+await fp.waitForTimeout(250);
+await fp.setInputFiles('#letterInput', HERE + 'doc1.jpg');
+await fp.waitForTimeout(300);
+await fp.click('#aiActions button:nth-child(1)');            // consent
+await fp.waitForFunction(() => {
+  const b = document.querySelector('#aiBody');
+  return b && !b.textContent.includes('קורא');
+}, null, { timeout: 12000 });
+
+const errText = await fp.textContent('#aiBody');
+ok('the browser is told in Hebrew that analysis is unavailable', /לא זמין/.test(errText));
+ok('the upstream words never reach the browser', !/guardrail|endpoints|404/.test(errText));
+ok('but our own error code does', /upstream_error/.test(errText));
+const errButtons = await fp.$$eval('#aiActions button', bs => bs.map(b => b.textContent));
+ok('and the sheet offers to find out why', errButtons.some(t => /בדיקת חיבור/.test(t)));
+
+/* running it names the routing filter, which is the actual cause */
+await fp.click('#aiActions button:nth-child(1)');
+await fp.waitForFunction(() => {
+  const b = document.querySelector('#aiBody');
+  return b && !b.textContent.includes('בודק');
+}, null, { timeout: 20000 });
+const checkText = await fp.textContent('#aiBody');
+ok('the check names the privacy routing, not a missing model',
+  /privacy routing/.test(checkText));
+ok('and names the variables that would relax it', /OPENROUTER_ZDR=0/.test(checkText));
+ok('no key material appears in the result', !/sk-or/.test(checkText));
+await fctx.close();
+failSrv.close();
+
 /* ---- with the endpoint gone, the app is the app it was before ---- */
 const plain = await browser.newContext();
 const p2 = await plain.newPage();

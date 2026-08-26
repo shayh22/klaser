@@ -7,6 +7,8 @@
 import { ApiError, errorResponse, json } from './errors.js';
 import { MemoryStore, D1Store } from './store.js';
 import { sanitiseExtras } from './validate.js';
+import { runPreflight } from './diagnose.js';
+import { DEFAULT_MODELS } from './adapters/openrouter.js';
 import { createAnalyzer } from './analyze.js';
 import { createAnthropicAdapter } from './adapters/anthropic.js';
 import { createOpenRouterAdapter } from './adapters/openrouter.js';
@@ -17,7 +19,7 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MEDIA_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 const DEFAULT_DAILY_CAP_USD = 25;
 
-export function createApp({ catalogue, env = {}, store, adapter, lookup, assets }) {
+export function createApp({ catalogue, env = {}, store, adapter, lookup, assets, fetchImpl }) {
   assets = assets || env.ASSETS;
   const dailyCap = Number(env.DAILY_SPEND_CAP_USD || DEFAULT_DAILY_CAP_USD);
   const origins = String(env.ALLOWED_ORIGINS || '*').split(',').map(s => s.trim());
@@ -29,6 +31,10 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
   adapter = adapter || chooseAdapter(env);
 
   const analyze = createAnalyzer({ adapter, catalogue, lookup });
+  /* Coarse, per-instance, and deliberately not in the store: this only needs to stop
+     someone holding the button down, and a check that costs a tenth of a cent does
+     not deserve a database round trip. */
+  let lastPreflight = 0;
 
   function cors(origin) {
     const allow = origins.includes('*') ? '*' : (origins.includes(origin) ? origin : origins[0] || '');
@@ -88,6 +94,49 @@ export function createApp({ catalogue, env = {}, store, adapter, lookup, assets 
             db: !!env.DB
           }
         }, 200, headers);
+      }
+
+      /* ---- preflight --------------------------------------------------------
+         Why the analysis is failing, asked one question at a time. /v1/analyze is
+         a two-call pipeline behind a gateway and the browser is shown a Hebrew
+         sentence rather than the upstream's words — deliberately, but it leaves the
+         owner of a deployment guessing between six unrelated causes.
+
+         Open to anyone who can reach the service, because it exposes only whether
+         each check passed and our own advice about it, never a key and never a
+         letter. It does spend a little money, so it is bounded three ways: the
+         daily cap applies, its cost is recorded like any other, and a Worker
+         instance will not run it twice inside a minute. */
+      if (url.pathname === '/v1/preflight' && (req.method === 'GET' || req.method === 'POST')) {
+        if (adapter.name !== 'openrouter') {
+          return json({ error: { code: 'bad_request',
+            message_he: 'הבדיקה הזו רלוונטית רק כששירות הניתוח מוגדר מול OpenRouter.',
+            provider: adapter.name } }, 400, headers);
+        }
+        const a = await accepting();
+        if (!a.ok) throw new ApiError('service_degraded');
+        const now = Date.now();
+        if (now - lastPreflight < 60_000) throw new ApiError('rate_limited', { retryAfter: 60 });
+        lastPreflight = now;
+
+        const out = await runPreflight({
+          apiKey: env.OPENROUTER_API_KEY,
+          models: {
+            identify: env.OPENROUTER_MODEL_IDENTIFY || DEFAULT_MODELS.identify,
+            read:     env.OPENROUTER_MODEL_READ     || DEFAULT_MODELS.read,
+            escalate: env.OPENROUTER_MODEL_ESCALATE || DEFAULT_MODELS.escalate
+          },
+          zdr: String(env.OPENROUTER_ZDR ?? '1') !== '0',
+          dataCollection: String(env.OPENROUTER_DATA_COLLECTION || 'deny'),
+          pdfEngine: env.OPENROUTER_PDF_ENGINE || 'native',
+          /* The same injection seam the adapter has, so the failure paths can be
+             driven in a test instead of described in a comment. */
+          ...(fetchImpl ? { fetchImpl } : {})
+        });
+        await store.addSpend(out.spent_usd || 0);
+        console.log(JSON.stringify({ ev: 'preflight', ok: out.ok,
+          failed: out.checks.filter(c => !c.ok).map(c => c.name), usd: out.spent_usd }));
+        return json(out, 200, headers);
       }
 
       /* ---- token ----------------------------------------------------------- */

@@ -1,6 +1,6 @@
 # Klaser — handover
 
-**627 assertions, 0 failures (`node tests/run.mjs`).**
+**652 assertions, 0 failures (`node tests/run.mjs`).**
 
 Read this first; everything else is linked from here.
 
@@ -72,6 +72,7 @@ server/                 Cloudflare Worker: serves the app AND the API from one o
   analyze.js            identify (Haiku) → catalogue lookup → read (Sonnet)
   prompts.js            Hebrew system prompts + the schema built from the catalogue
   validate.js           the catalogue check applied to the answer, not just asked for
+  diagnose.js           the five checks behind GET /v1/preflight and the CLI tool
   adapters/openrouter.js  the gateway — one key, many models; the deployed path
   adapters/anthropic.js   Anthropic direct — raw HTTP, never yet executed (see below)
   adapters/mock.js      realistic Hebrew fixtures; why the suite runs with no key
@@ -79,7 +80,7 @@ server/                 Cloudflare Worker: serves the app AND the API from one o
   assets.js             serves the page and injects the endpoint into it
 tools/
   extract-catalogue.mjs generates contracts/catalogue.json FROM index.html
-  preflight.mjs         key, slugs, routing, image and PDF — five checks, ~$0.001
+  preflight.mjs         prints what server/diagnose.js finds; ~$0.001 a run
   probe-live.mjs        one real API call, reported in detail
   build-dist.mjs        assembles dist/ for deploy
   build-demo.mjs        packages the standalone demo page
@@ -125,6 +126,25 @@ Going through a gateway buys two things beyond the model list:
 
 The cost is that the schema is no longer enforced by the same service that generates
 the tokens. That is what `server/validate.js` is for.
+
+### When analysis fails on a deployment
+
+`/v1/analyze` is a two-call pipeline behind a gateway, and the browser is shown a
+Hebrew sentence rather than the upstream's words — deliberately. That leaves the
+owner guessing between a dead key, no credit, a renamed slug, a routing filter with
+no compliant provider, a model that will not do structured output, and a PDF the
+parser drops.
+
+So the error sheet now carries **our own error code** (never the provider's words),
+and when the provider is what failed it offers a **connection check** that runs
+`GET /v1/preflight` — the same five questions `tools/preflight.mjs` asks, for about
+a tenth of a cent, reachable from a phone. `server/diagnose.js` is the single
+implementation; the CLI tool only prints it.
+
+A browser failure message is not a code: "Failed to fetch" in Chrome, "NetworkError"
+in Firefox, something else on iOS. Network failures are tagged `network` so what the
+user quotes means the same thing everywhere — and `network` deliberately does *not*
+offer the check, because a service you cannot reach cannot be asked why.
 
 ### The immediate next step
 
@@ -315,7 +335,7 @@ deadline exact ≥ 0.90.
 ## Running it
 
 ```bash
-node tests/run.mjs                                # 627 assertions
+node tests/run.mjs                                # 652 assertions
 node server/dev.js                                # mock provider, no key needed
 OPENROUTER_API_KEY=sk-or-… npm run preflight      # five cheap checks, before anything
 OPENROUTER_API_KEY=sk-or-… node server/dev.js     # real models via the gateway
